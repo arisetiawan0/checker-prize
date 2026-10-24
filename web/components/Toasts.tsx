@@ -1,0 +1,63 @@
+"use client";
+
+import { useCallback, useRef, useState } from "react";
+import { Icon } from "./icons";
+
+export type ToastKind = "ok" | "err" | "info";
+
+interface ToastItem {
+  id: number;
+  kind: ToastKind;
+  msg: string;
+  leaving: boolean;
+}
+
+/** Toast atas layar, auto-dismiss default 3.2 dtk, region aria-live polite */
+export function useToasts() {
+  const [items, setItems] = useState<ToastItem[]>([]);
+  const seq = useRef(0);
+
+  const show = useCallback((kind: ToastKind, msg: string, ms = 3200) => {
+    const id = ++seq.current;
+    setItems((prev) => [...prev, { id, kind, msg, leaving: false }]);
+    setTimeout(() => {
+      setItems((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
+      setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 280);
+    }, ms);
+  }, []);
+
+  return { items, show };
+}
+
+const KIND_ICON: Record<ToastKind, React.ReactNode> = {
+  ok: Icon.check,
+  err: Icon.warn,
+  info: Icon.info
+};
+
+const KIND_COLOR: Record<ToastKind, string> = {
+  ok: "text-[#5ED5A8]",
+  err: "text-[#FF8A8A]",
+  info: "text-[#8AB6FF]"
+};
+
+export function ToastRegion({ items }: { items: ToastItem[] }) {
+  return (
+    <div
+      aria-live="polite"
+      className="pointer-events-none fixed left-1/2 top-[calc(env(safe-area-inset-top,0px)+14px)] z-[60] flex w-[min(400px,calc(100vw-32px))] -translate-x-1/2 flex-col gap-2"
+    >
+      {items.map((t) => (
+        <div
+          key={t.id}
+          className={`flex items-center gap-2.5 rounded-2xl border border-white/[0.16] bg-night-2 px-4 py-3 text-[13.5px] font-medium text-white shadow-[0_16px_40px_-12px_rgba(0,0,0,0.5)] ${
+            t.leaving ? "anim-toast-out" : "anim-toast-in"
+          }`}
+        >
+          <span className={`shrink-0 [&>svg]:h-[18px] [&>svg]:w-[18px] ${KIND_COLOR[t.kind]}`}>{KIND_ICON[t.kind]}</span>
+          <span>{t.msg}</span>
+        </div>
+      ))}
+    </div>
+  );
+}

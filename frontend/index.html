@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Beauty Price Checker</title>
+  <meta name="description" content="Cek harga reguler & flash sale Beauty lewat scan barcode, input SKU, atau nama produk." />
+  <meta name="theme-color" content="#101014" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Beauty Price" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/icon-192.png" />
+  <link rel="icon" type="image/png" href="assets/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <!-- ============ Akses staff (gerbang PIN) ============ -->
+  <section id="view-gate" class="gate" aria-labelledby="gate-title">
+    <div class="gate__glow" aria-hidden="true"></div>
+    <div class="gate__card">
+      <div class="gate__brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 9.5 12 4l8 5.5v6.2c0 .9-.5 1.7-1.3 2.1l-6.2 3a1.9 1.9 0 0 1-1.7 0l-6.2-3A2.4 2.4 0 0 1 4 15.7V9.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 12.5c.6.9 2 1.6 3.5 1.6s2.9-.7 3.5-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="9" cy="9.8" r="1" fill="currentColor"/><circle cx="15" cy="9.8" r="1" fill="currentColor"/></svg>
+        </span>
+        <p class="gate__brand-name">Beauty <span>Price Checker</span></p>
+      </div>
+      <h1 id="gate-title">Masuk kode akses staff</h1>
+      <p class="gate__sub">Aplikasi khusus tim internal. Masukkan 6 digit kode akses outlet untuk mulai mengecek harga.</p>
+      <form id="gate-form" novalidate>
+        <div class="pin-field" role="group" aria-label="Kode akses 6 digit">
+          <div class="pin-cells" id="pin-cells" aria-hidden="true">
+            <span class="pin-cell"></span><span class="pin-cell"></span><span class="pin-cell"></span>
+            <span class="pin-cell"></span><span class="pin-cell"></span><span class="pin-cell"></span>
+          </div>
+          <input id="pin-input" class="sr-only-input" type="password" inputmode="numeric" autocomplete="off"
+                 maxlength="6" aria-label="Kode akses 6 digit" aria-describedby="gate-msg" />
+        </div>
+        <p id="gate-msg" class="field-msg" role="alert" aria-live="polite"></p>
+        <button type="submit" class="btn btn--primary btn--block" id="gate-submit">Buka Aplikasi</button>
+        <p class="gate__hint">Demo prototype: gunakan kode <button type="button" class="hint-chip" id="pin-fill">280101</button></p>
+      </form>
+    </div>
+    <p class="gate__foot">Beauty · PWA internal outlet · v1.0 prototype</p>
+  </section>
+
+  <!-- ============ Aplikasi utama ============ -->
+  <main id="app" class="app" hidden>
+    <!-- Scanner / beranda -->
+    <section id="view-scan" class="view view--scan" aria-label="Pindai barcode">
+      <div class="scan-stage">
+        <div class="scan-stage__cam" id="cam-stage" aria-hidden="true">
+          <video id="cam-video" class="cam-video" playsinline muted></video>
+          <div class="cam-fallback" id="cam-fallback">
+            <div class="cam-ghost">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 8V6.5A2.5 2.5 0 0 1 6.5 4H8M16 4h1.5A2.5 2.5 0 0 1 20 6.5V8M20 16v1.5a2.5 2.5 0 0 1-2.5 2.5H16M8 20H6.5A2.5 2.5 0 0 1 4 17.5V16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M4 12h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            </div>
+            <p class="cam-fallback__title">Pratinjau kamera aktif saat scan</p>
+            <p class="cam-fallback__sub">Mode demo memakai kode sampel — di perangkat asli, kamera belakang akan terbuka di area ini.</p>
+          </div>
+          <div class="viewfinder" id="viewfinder">
+            <span class="vf-corner vf-tl"></span><span class="vf-corner vf-tr"></span>
+            <span class="vf-corner vf-bl"></span><span class="vf-corner vf-br"></span>
+            <span class="vf-beam" aria-hidden="true"></span>
+          </div>
+          <div class="scan-status" id="scan-status" hidden>
+            <span class="scan-status__dot" aria-hidden="true"></span>
+            <span id="scan-status-text">Mencari barcode…</span>
+          </div>
+        </div>
+
+        <header class="scan-top">
+          <div class="scan-top__brand">
+            <span class="brand-mark brand-mark--sm" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 9.5 12 4l8 5.5v6.2c0 .9-.5 1.7-1.3 2.1l-6.2 3a1.9 1.9 0 0 1-1.7 0l-6.2-3A2.4 2.4 0 0 1 4 15.7V9.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 12.5c.6.9 2 1.6 3.5 1.6s2.9-.7 3.5-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="9" cy="9.8" r="1" fill="currentColor"/><circle cx="15" cy="9.8" r="1" fill="currentColor"/></svg>
+            </span>
+            <div class="scan-top__titles">
+              <strong>Beauty</strong>
+              <span>Price Checker</span>
+            </div>
+          </div>
+          <div class="scan-top__meta">
+            <span class="sync-pill" id="sync-pill" title="Kesegaran data spreadsheet">
+              <span class="sync-pill__dot" aria-hidden="true"></span>
+              <span id="sync-pill-text">Data diperbarui —</span>
+            </span>
+            <button type="button" class="icon-btn icon-btn--ghost" id="btn-lockout" aria-label="Keluar dari aplikasi" title="Keluar">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M15.5 9.5V7a3.5 3.5 0 1 0-7 0v2.5M9 13.8h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><rect x="5" y="9.5" width="14" height="10" rx="2.6" stroke="currentColor" stroke-width="1.7"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="scan-hint">
+          <p>Arahkan kamera ke barcode produk.<br />EAN-13, EAN-8, UPC-A, Code 128, dan QR didukung.</p>
+        </div>
+
+        <div class="scan-dock">
+          <button type="button" class="dock-btn" id="btn-torch" aria-pressed="false" disabled title="Senter">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6v2.8a2 2 0 0 1-.4 1.2L13 10v9a1.5 1.5 0 0 1-1.5 1.5h0A1.5 1.5 0 0 1 10 19v-9L8.4 7.5a2 2 0 0 1-.4-1.2V3.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 12.5h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <span>Senter</span>
+          </button>
+          <button type="button" class="dock-btn dock-btn--primary" id="btn-manual">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 6.5h14M5 12h14M5 17.5h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <span>Input Manual</span>
+          </button>
+          <button type="button" class="dock-btn" id="btn-history-dock">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 7.5V12l2.8 2M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M20 4.5V7h-2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Riwayat<span class="dock-badge" id="history-badge" hidden>0</span></span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cari manual -->
+    <section id="view-search" class="view view--list" aria-label="Cari produk" hidden>
+      <header class="page-head">
+        <button type="button" class="icon-btn icon-btn--back" id="search-back" aria-label="Kembali ke scanner">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M14.5 6 8.5 12l6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div>
+          <h2>Cari Produk</h2>
+          <p>Barcode, SKU, atau nama produk</p>
+        </div>
+      </header>
+      <div class="search-wrap">
+        <form class="search-bar" id="search-form" role="search">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.7"/><path d="m16.5 16.5 3.5 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <input id="search-input" type="search" inputmode="search" placeholder="Contoh: serum, BK-0012, 8991…"
+                 autocomplete="off" aria-label="Cari barcode, SKU, atau nama produk" aria-describedby="search-count" />
+          <button type="button" class="search-clear" id="search-clear" aria-label="Hapus pencarian" hidden>
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="m9.5 9.5 5 5m0-5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+        </form>
+        <p class="search-count" id="search-count" aria-live="polite"></p>
+        <div id="search-results" class="result-list" role="listbox" aria-label="Hasil pencarian"></div>
+        <div id="search-empty" class="empty" hidden>
+          <div class="empty__art" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="m16.5 16.5 3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+          <h3 id="search-empty-title">Mulai mengetik untuk mencari</h3>
+          <p id="search-empty-sub">Cocokkan dengan nama produk, SKU, atau barcode. Maksimal 20 hasil teratas ditampilkan.</p>
+        </div>
+        <div id="search-skeleton" class="skeleton-list" hidden>
+          <div class="skel-row"><div class="skel-thumb"></div><div class="skel-lines"><span></span><span></span></div><div class="skel-price"></div></div>
+          <div class="skel-row"><div class="skel-thumb"></div><div class="skel-lines"><span></span><span></span></div><div class="skel-price"></div></div>
+          <div class="skel-row"><div class="skel-thumb"></div><div class="skel-lines"><span></span><span></span></div><div class="skel-price"></div></div>
+          <div class="skel-row"><div class="skel-thumb"></div><div class="skel-lines"><span></span><span></span></div><div class="skel-price"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Riwayat -->
+    <section id="view-history" class="view view--list" aria-label="Riwayat scan" hidden>
+      <header class="page-head">
+        <button type="button" class="icon-btn icon-btn--back" id="history-back" aria-label="Kembali ke scanner">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M14.5 6 8.5 12l6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div>
+          <h2>Riwayat Scan</h2>
+          <p id="history-count">Tersimpan di perangkat ini</p>
+        </div>
+        <button type="button" class="text-danger" id="history-clear">Hapus</button>
+      </header>
+      <div class="history-wrap">
+        <div id="history-list" class="history-list"></div>
+        <div id="history-empty" class="empty" hidden>
+          <div class="empty__art" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 7.5V12l2.8 2M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M20 4.5V7h-2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3>Belum ada scan</h3>
+          <p>Setiap barcode yang berhasil dipindai atau kode yang dicari akan muncul di sini, siap dibuka ulang.</p>
+          <button type="button" class="btn btn--ghost" id="history-empty-cta">Mulai Scan</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel hasil harga: bottom sheet di HP, panel tengah di tablet/desktop -->
+    <div id="result-overlay" class="overlay" hidden></div>
+    <section id="result-sheet" class="sheet" role="dialog" aria-modal="true" aria-label="Hasil cek harga" hidden>
+      <div class="sheet__grabber" aria-hidden="true"><span></span></div>
+      <div class="sheet__scroll" id="sheet-scroll"></div>
+      <div class="sheet__actions">
+        <button type="button" class="btn btn--ghost" id="sheet-close">Tutup</button>
+        <button type="button" class="btn btn--primary" id="sheet-rescan">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8V6.5A2.5 2.5 0 0 1 6.5 4H8M16 4h1.5A2.5 2.5 0 0 1 20 6.5V8M20 16v1.5a2.5 2.5 0 0 1-2.5 2.5H16M8 20H6.5A2.5 2.5 0 0 1 4 17.5V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Scan Lagi
+        </button>
+      </div>
+    </section>
+
+    <div id="toast-region" class="toasts" aria-live="polite" aria-atomic="false"></div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/scanner.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
