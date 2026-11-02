@@ -115,6 +115,7 @@ export function AppShell() {
     setSheetOpen(false);
   };
   const goSearch = (seed = "") => {
+    setSheetOpen(false); // tutup modal hasil (mis. panel not-found) agar tidak menutupi pencarian
     setSearchSeed(seed);
     setView("search");
   };
