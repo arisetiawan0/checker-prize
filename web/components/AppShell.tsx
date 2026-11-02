@@ -69,6 +69,25 @@ export function AppShell() {
     });
   }, []);
 
+  /* --- cache harga terakhir (untuk mode offline) --- */
+  const cachePrice = useCallback((res: PriceResult) => {
+    if ("notFound" in res) return;
+    try {
+      const KEY = "beauty.pc.pricecache";
+      const cache = JSON.parse(localStorage.getItem(KEY) || "{}") as Record<string, { res: PriceResult; at: number }>;
+      // simpan maks 300 entri terakhir
+      const keys = Object.keys(cache);
+      if (keys.length >= 300) {
+        keys.sort((a, b) => cache[a].at - cache[b].at);
+        for (let i = 0; i < keys.length - 250; i++) delete cache[keys[i]];
+      }
+      cache[res.product.barcode] = { res, at: Date.now() };
+      localStorage.setItem(KEY, JSON.stringify(cache));
+    } catch {
+      /* storage penuh/tak tersedia — cache harga bersifat bonus */
+    }
+  }, []);
+
   /* --- buka hasil harga --- */
   const openPrice = useCallback(
     async (code: string) => {
@@ -78,6 +97,7 @@ export function AppShell() {
         const res = await fetchPrice(code);
         setResult(res);
         if ("notFound" in res === false) {
+          cachePrice(res);
           const kind = res.non_promo ? "normal" : res.flash_sale ? "flash" : res.promo_price !== null ? "disc" : "normal";
           pushHistory({
             code: res.product.barcode || code,
@@ -88,13 +108,27 @@ export function AppShell() {
           });
         }
       } catch {
-        show("err", "Gagal mengambil harga — periksa koneksi lalu scan ulang");
-        setSheetOpen(false);
+        // offline/gagal: tampilkan harga dari cache perangkat bila pernah dicek
+        try {
+          const KEY = "beauty.pc.pricecache";
+          const cache = JSON.parse(localStorage.getItem(KEY) || "{}") as Record<string, { res: PriceResult; at: number }>;
+          const hit = cache[code] ?? cache[Object.keys(cache).find((k) => k.toLowerCase() === code.toLowerCase()) ?? ""];
+          if (hit && hit.res && "notFound" in hit.res === false) {
+            setResult(hit.res);
+            show("info", "Anda offline — menampilkan harga tersimpan terakhir", 4200);
+          } else {
+            show("err", "Anda offline — harga ini belum pernah dicek di perangkat ini", 4200);
+            setSheetOpen(false);
+          }
+        } catch {
+          show("err", "Gagal mengambil harga — periksa koneksi lalu scan ulang");
+          setSheetOpen(false);
+        }
       } finally {
         setSheetLoading(false);
       }
     },
-    [pushHistory, show]
+    [pushHistory, show, cachePrice]
   );
 
   const handleCode = useCallback((code: string) => void openPrice(code), [openPrice]);

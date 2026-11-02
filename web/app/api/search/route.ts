@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { staffOk, rateLimit, unauthorized } from "@/lib/auth";
 import { buildCatalogHeaders, getCatalog, buildSearchItem } from "@/lib/catalog";
+import { buildSearchIndex } from "@/lib/search-index";
 import type { SearchResultItem } from "@/lib/types";
 
 /**
  * GET /api/search?q={teks} — PRD §8. Maks 20 hasil.
- * Prioritas: barang promo (skor persis barcode > awalan nama > mengandung nama >
- * mengandung barcode), lalu barang non-promo dari master POS.
+ * Memakai indeks pre-built per refresh katalog (lib/search-index.ts) —
+ * tidak menyisir 60 rb baris per ketikan.
+ * Prioritas: persis barcode > awalan nama > mengandung nama > barcode,
+ * promo selalu di atas non-promo.
  */
 export async function GET(req: NextRequest) {
   if (!staffOk(req)) return unauthorized();
@@ -16,47 +19,67 @@ export async function GET(req: NextRequest) {
   if (!q) return NextResponse.json([]);
 
   const catalog = await getCatalog();
+  const idx = buildSearchIndex(catalog);
   const now = Date.now();
-  const scored: Array<SearchResultItem & { _score: number; _name: string }> = [];
+  const digitQuery = /^\d+$/.test(q);
 
-  for (const promo of catalog.promo.values()) {
-    const name = promo.nama.toLowerCase();
-    let score = -1;
-    if (promo.barcode === q) score = 100;
-    else if (name.startsWith(q)) score = 80;
-    else if (name.includes(q)) score = 60;
-    else if (promo.barcode.includes(q)) score = 40;
-    if (score <= 0) continue;
+  interface Hit {
+    item: ReturnType<typeof buildSearchItem>;
+    name: string;
+    score: number;
+  }
+  const hits: Hit[] = [];
+  const seen = new Set<string>();
 
-    scored.push({
-      ...buildSearchItem(promo, catalog.master.get(promo.barcode.toLowerCase()), now),
-      _score: score,
-      _name: promo.nama
-    });
+  const push = (entry: { promo: boolean; barcode: string; nama: string }, score: number) => {
+    if (seen.has(entry.barcode)) return;
+    seen.add(entry.barcode);
+    const promo = entry.promo ? catalog.promo.get(entry.barcode.toLowerCase()) : undefined;
+    const master = catalog.master.get(entry.barcode.toLowerCase());
+    hits.push({ item: buildSearchItem(promo, master, now), name: entry.nama, score });
+  };
+
+  if (digitQuery) {
+    // query barcode: scan cepat over barcode index (string compare murni)
+    for (const e of idx.byBarcode) {
+      let score = -1;
+      if (e.barcode === q) score = 100;
+      else if (e.promo && e.barcode.startsWith(q)) score = 90;
+      else if (!e.promo && e.barcode.startsWith(q)) score = 70;
+      else if (e.barcode.includes(q)) score = 40;
+      if (score > 0) push(e, score);
+    }
+  } else {
+    // query teks: kandidat dari token index + scan promo (±3 rb)
+    const candidates = new Map<string, { promo: boolean; barcode: string; nama: string }>();
+    for (const [tok, list] of idx.tokens) {
+      if (tok.startsWith(q)) {
+        for (const e of list) candidates.set(e.barcode, e);
+      }
+    }
+    for (const e of idx.promoEntries) {
+      if (e.namaLower.includes(q)) candidates.set(e.barcode, e);
+    }
+    for (const e of candidates.values()) {
+      let score = -1;
+      if (e.promo) {
+        if (e.barcode === q) score = 100;
+        else if (e.nama.toLowerCase().startsWith(q)) score = 80;
+        else if (e.nama.toLowerCase().includes(q)) score = 60;
+        else score = 50; // cocok via token lain dalam nama
+      } else {
+        if (e.barcode === q) score = 70;
+        else if (e.nama.toLowerCase().startsWith(q)) score = 50;
+        else if (e.nama.toLowerCase().includes(q)) score = 30;
+        else score = 25;
+      }
+      if (score > 0) push(e, score);
+    }
   }
 
-  // barang non-promo dari master (skor lebih rendah, hanya kalau slot tersisa)
-  for (const m of catalog.master.values()) {
-    if (catalog.promo.has(m.barcode.toLowerCase())) continue; // sudah masuk sebagai promo
-    const name = m.nama.toLowerCase();
-    let score = -1;
-    if (m.barcode === q) score = 70;
-    else if (name.startsWith(q)) score = 50;
-    else if (name.includes(q)) score = 30;
-    else if (m.barcode.includes(q)) score = 20;
-    if (score <= 0) continue;
-
-    scored.push({ ...buildSearchItem(undefined, m, now), _score: score, _name: m.nama });
-  }
-
-  scored.sort((a, b) => b._score - a._score || a._name.localeCompare(b._name));
+  hits.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
   return NextResponse.json(
-    scored.slice(0, 20).map((item) => {
-      const { _score: _s, _name: _n, ...rest } = item;
-      void _s;
-      void _n;
-      return rest;
-    }),
+    hits.slice(0, 20).map((h) => h.item),
     { headers: buildCatalogHeaders(catalog) }
   );
 }

@@ -125,6 +125,8 @@ interface CatalogCache {
   stale?: boolean;
 }
 
+export type { CatalogCache };
+
 export type CatalogSource = "sheets" | "demo";
 
 const TTL_MS = 45_000;
