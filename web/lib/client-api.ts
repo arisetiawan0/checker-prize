@@ -19,18 +19,28 @@ function authReset() {
 
 /** Panggilan klien ke Route Handler — bentuk respons persis PRD §8. */
 export async function fetchPrice(code: string, signal?: AbortSignal): Promise<PriceResult> {
-  const res = await fetch(`/api/price?code=${encodeURIComponent(code)}`, { signal });
-  if (res.status === 401) {
-    authReset();
-    throw new Error("AUTH_EXPIRED");
+  // timeout 12 dtk: jangan biarkan staf menatap skeleton tanpa batas
+  const timeout = new AbortController();
+  const t = setTimeout(() => timeout.abort(), 12_000);
+  const onAbort = () => timeout.abort();
+  signal?.addEventListener("abort", onAbort);
+  try {
+    const res = await fetch(`/api/price?code=${encodeURIComponent(code)}`, { signal: timeout.signal });
+    if (res.status === 401) {
+      authReset();
+      throw new Error("AUTH_EXPIRED");
+    }
+    if (res.status === 404) {
+      return { notFound: true, code };
+    }
+    if (!res.ok) {
+      throw new Error(`PRICE_HTTP_${res.status}`);
+    }
+    return (await res.json()) as PriceResult;
+  } finally {
+    clearTimeout(t);
+    signal?.removeEventListener("abort", onAbort);
   }
-  if (res.status === 404) {
-    return { notFound: true, code };
-  }
-  if (!res.ok) {
-    throw new Error(`PRICE_HTTP_${res.status}`);
-  }
-  return (await res.json()) as PriceResult;
 }
 
 export async function fetchSearch(q: string, signal?: AbortSignal): Promise<SearchResultItem[]> {

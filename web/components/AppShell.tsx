@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PinGate } from "./PinGate";
 import { ScanView } from "./ScanView";
 import { SearchView } from "./SearchView";
@@ -89,12 +89,18 @@ export function AppShell() {
   }, []);
 
   /* --- buka hasil harga --- */
+  // guard anti-lomba: bila openPrice dipanggil lagi (scan cepat berturut /
+  // klik history berulang), respons request lama yang terlambat dibuang —
+  // tanpa ini skeleton bisa "stuck" menampilkan request basi.
+  const reqIdRef = useRef(0);
   const openPrice = useCallback(
     async (code: string) => {
+      const reqId = ++reqIdRef.current;
       setSheetLoading(true);
       setSheetOpen(true);
       try {
         const res = await fetchPrice(code);
+        if (reqId !== reqIdRef.current) return; // ada request lebih baru → abaikan
         setResult(res);
         if ("notFound" in res === false) {
           cachePrice(res);
@@ -108,6 +114,7 @@ export function AppShell() {
           });
         }
       } catch {
+        if (reqId !== reqIdRef.current) return; // request lama → jangan ganggu yang baru
         // offline/gagal: tampilkan harga dari cache perangkat bila pernah dicek
         try {
           const KEY = "beauty.pc.pricecache";
@@ -125,7 +132,7 @@ export function AppShell() {
           setSheetOpen(false);
         }
       } finally {
-        setSheetLoading(false);
+        if (reqId === reqIdRef.current) setSheetLoading(false);
       }
     },
     [pushHistory, show, cachePrice]
