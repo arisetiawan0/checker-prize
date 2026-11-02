@@ -200,7 +200,7 @@ export function ResultSheet({
           )}
           {alt_tier && (
             <Row
-              dt="Diskon tanggal lain"
+              dt={`Diskon ${fmtWitaDateID(alt_tier.start)}`}
               dd={`${alt_tier.disc}% (${fmtRupiah(alt_tier.price)})`}
               sub={`${fmtWitaDateID(alt_tier.start)} – ${fmtWitaDateID(alt_tier.end)} WITA`}
             />
