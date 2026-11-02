@@ -176,7 +176,7 @@ export function ResultSheet({
         </div>
 
         <dl>
-          <Row dt="Harga jual" dd={fmtRupiah(regular_price)} />
+          <Row dt="Harga jual" dd={fmtRupiah(regular_price)} ddClass="text-ink-2" />
           {promo_price !== null && !non_promo && (
             <Row dt="Harga disc reguler" dd={fmtRupiah(promo_price)} ddClass="text-brand-ink" />
           )}
@@ -188,7 +188,8 @@ export function ResultSheet({
           ) : flashScheduled !== null ? (
             <Row
               dt="Flash sale"
-              dd={`${fmtRupiah(flashScheduled)} · ${flashSessionLabel(event)}`}
+              dd={fmtRupiah(flashScheduled)}
+              sub={`${flashSessionLabel(event)} WITA`}
               ddClass="text-brand-ink"
             />
           ) : (
@@ -200,14 +201,15 @@ export function ResultSheet({
           {alt_tier && (
             <Row
               dt="Diskon tanggal lain"
-              dd={`${alt_tier.disc}% (${fmtRupiah(alt_tier.price)}) · ${fmtWitaDateID(alt_tier.start)} – ${fmtWitaDateID(alt_tier.end)} WITA`}
+              dd={`${alt_tier.disc}% (${fmtRupiah(alt_tier.price)})`}
+              sub={`${fmtWitaDateID(alt_tier.start)} – ${fmtWitaDateID(alt_tier.end)} WITA`}
             />
           )}
           {product.pareto && <Row dt="Pareto" dd={product.pareto} />}
           <Row
-            dt="Harga efektif sekarang"
+            dt="Harga berlaku sekarang"
             dd={fmtRupiah(effective_price)}
-            ddClass="inline-flex items-center gap-1.5 text-ok [&_svg]:h-3.5 [&_svg]:w-3.5"
+            ddClass="inline-flex items-center gap-1.5 text-[14.5px] font-bold text-ok [&_svg]:h-4 [&_svg]:w-4"
             ddIcon={Icon.check}
           />
         </dl>
@@ -266,13 +268,29 @@ export function ResultSheet({
   );
 }
 
-function Row({ dt, dd, ddClass = "", ddIcon }: { dt: string; dd: string; ddClass?: string; ddIcon?: React.ReactNode }) {
+function Row({
+  dt,
+  dd,
+  sub,
+  ddClass = "",
+  ddIcon
+}: {
+  dt: string;
+  dd: string;
+  /** teks kecil di bawah nilai (mis. jadwal sesi) */
+  sub?: string;
+  ddClass?: string;
+  ddIcon?: React.ReactNode;
+}) {
   return (
     <div className="flex items-start justify-between gap-3.5 border-t border-line px-0.5 py-3 text-sm">
-      <dt className="shrink-0 font-medium text-ink-2">{dt}</dt>
-      <dd className={`text-right font-mono text-[13px] font-semibold [overflow-wrap:anywhere] ${ddClass}`}>
-        {ddIcon}
-        {dd}
+      <dt className="shrink-0 pt-0.5 font-medium text-ink-2">{dt}</dt>
+      <dd className="text-right">
+        <span className={`font-mono text-[13px] font-semibold [overflow-wrap:anywhere] ${ddClass}`}>
+          {ddIcon}
+          {dd}
+        </span>
+        {sub && <span className="mt-1 block font-mono text-[11.5px] leading-snug text-ink-3">{sub}</span>}
       </dd>
     </div>
   );
