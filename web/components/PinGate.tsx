@@ -107,7 +107,7 @@ export function PinGate({ onUnlock }: PinGateProps) {
   };
 
   return (
-    <section className="fixed inset-0 grid place-items-center overflow-hidden px-5 py-6"
+    <section className="fixed inset-0 grid place-items-center overflow-y-auto overflow-x-hidden px-4 py-[max(16px,env(safe-area-inset-top,0px))] pb-[max(16px,env(safe-area-inset-bottom,0px))]"
       style={{
         background:
           "radial-gradient(120% 90% at 85% -10%, #E9E0F4 0%, transparent 55%), radial-gradient(110% 80% at 0% 110%, var(--color-brand-bg) 0%, transparent 55%), var(--color-porcelain)"
@@ -118,8 +118,8 @@ export function PinGate({ onUnlock }: PinGateProps) {
         className="anim-floaty pointer-events-none absolute -top-[220px] right-[-160px] h-[520px] w-[520px] rounded-full blur-[10px]"
         style={{ background: "radial-gradient(circle, rgba(194,71,126,0.22) 0%, transparent 65%)" }}
       />
-      <div className="anim-rise relative z-[1] w-[min(400px,100%)] rounded-[28px] border border-line/90 bg-surface px-7 pb-7 pt-[34px] text-center shadow-card">
-        <div className="mb-[18px] flex flex-col items-center gap-2.5">
+      <div className="anim-rise relative z-[1] my-auto w-[min(400px,100%)] rounded-[28px] border border-line/90 bg-surface px-5 pb-6 pt-[26px] text-center shadow-card sm:px-7 sm:pb-7 sm:pt-[34px]">
+        <div className="mb-3 flex flex-col items-center gap-2 sm:mb-[18px]">
           <span className="grid h-[52px] w-[52px] place-items-center rounded-[17px] bg-gradient-to-b from-[#2B2733] to-[#15131A] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_10px_22px_-10px_rgba(21,19,26,0.55)]">
             <BrandIcon />
           </span>
@@ -128,8 +128,8 @@ export function PinGate({ onUnlock }: PinGateProps) {
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-3">Price Checker</span>
           </p>
         </div>
-        <h1 className="text-[23px] font-bold leading-snug tracking-[-0.02em]">Masuk kode akses staff</h1>
-        <p className="mx-auto mb-[22px] mt-2 max-w-[30ch] text-[14.5px] text-ink-2">
+        <h1 className="text-[21px] font-bold leading-snug tracking-[-0.02em] sm:text-[23px]">Masuk kode akses staff</h1>
+        <p className="mx-auto mb-4 mt-2 max-w-[30ch] text-[13.5px] text-ink-2 sm:mb-[22px] sm:text-[14.5px]">
           Aplikasi khusus tim internal. Masukkan 6 digit kode akses outlet untuk mulai mengecek harga.
         </p>
 
@@ -141,7 +141,7 @@ export function PinGate({ onUnlock }: PinGateProps) {
           }}
         >
           <div className={`relative ${shake ? "anim-shake" : ""}`} aria-hidden={false}>
-            <div className="mb-1.5 flex justify-center gap-2.5">
+            <div className="mb-1.5 flex justify-center gap-2 sm:gap-2.5">
               {digits.map((d, i) => (
                 <input
                   key={i}
@@ -154,7 +154,7 @@ export function PinGate({ onUnlock }: PinGateProps) {
                   aria-label={`Digit ${i + 1} kode akses`}
                   maxLength={6}
                   disabled={busy}
-                  className={`h-[58px] w-[46px] rounded-[14px] border-[1.5px] text-center font-mono text-[22px] font-semibold outline-none transition-colors duration-150 ${
+                  className={`h-[56px] w-full min-w-0 max-w-[46px] rounded-[14px] border-[1.5px] text-center font-mono text-[22px] font-semibold outline-none transition-colors duration-150 sm:h-[58px] sm:w-[46px] ${
                     d
                       ? "border-ink bg-white"
                       : "border-line-strong bg-elev focus:border-brand focus:bg-white focus:shadow-[0_0_0_3.5px_var(--color-brand-bg)]"
@@ -179,7 +179,7 @@ export function PinGate({ onUnlock }: PinGateProps) {
           </button>
         </form>
       </div>
-      <p className="absolute bottom-[max(18px,calc(env(safe-area-inset-bottom,0px)+12px))] left-0 right-0 text-center text-[12.5px] text-ink-3">
+      <p className="relative z-[1] mt-3 shrink-0 text-center text-[12.5px] text-ink-3 sm:mt-4">
         Beauty · PWA internal outlet · v1.0
       </p>
     </section>
