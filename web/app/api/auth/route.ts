@@ -6,7 +6,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { STAFF_COOKIE, createStaffToken, pinMatches, rateLimit } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(req, "auth", 5, 10 * 60 * 1000); // 5 percobaan / 10 menit / IP
+  // 15 percobaan / 10 menit / IP — cukup longgar utk salah ketik staf,
+  // tetap membatasi brute-force (6 digit = 1jt kombinasi).
+  const limited = rateLimit(req, "auth", 15, 10 * 60 * 1000);
   if (limited) return limited;
 
   let code = "";
