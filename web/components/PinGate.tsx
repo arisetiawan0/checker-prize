@@ -18,6 +18,7 @@ export function PinGate({ onUnlock }: PinGateProps) {
   const [digits, setDigits] = useState("");
   const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
+  const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -25,10 +26,12 @@ export function PinGate({ onUnlock }: PinGateProps) {
   }, []);
 
   const submit = async (val: string) => {
+    if (busy) return;
     if (val.length < 6) {
       setError("Masukkan lengkap 6 digit kode akses.");
       return;
     }
+    setBusy(true);
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
@@ -52,6 +55,8 @@ export function PinGate({ onUnlock }: PinGateProps) {
       onUnlock();
     } catch {
       setError("Tidak bisa menghubungi server. Periksa koneksi lalu coba lagi.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -121,20 +126,25 @@ export function PinGate({ onUnlock }: PinGateProps) {
                 const v = e.target.value.replace(/\D/g, "").slice(0, 6);
                 setDigits(v);
                 setError("");
-                if (v.length === 6) setTimeout(() => submit(v), 140);
+                if (v.length === 6 && !busy) setTimeout(() => submit(v), 140);
               }}
             />
           </div>
           <p role="alert" aria-live="polite" className={`mb-3.5 mt-0.5 min-h-[21px] text-[13.5px] ${error ? "font-medium text-danger" : "text-ink-2"}`}>
             {error}
           </p>
-          <button type="submit" className="h-[54px] w-full rounded-[17px] bg-night text-base font-semibold tracking-[0.01em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_-10px_rgba(16,16,20,0.55)] transition active:scale-[0.975] hover:bg-[#24222B]">
-            Buka Aplikasi
+          <button
+            type="submit"
+            disabled={busy}
+            className="h-[54px] w-full rounded-[17px] bg-night text-base font-semibold tracking-[0.01em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_-10px_rgba(16,16,20,0.55)] transition active:scale-[0.975] hover:bg-[#24222B] disabled:opacity-70"
+          >
+            {busy ? "Memeriksa…" : "Buka Aplikasi"}
           </button>
           <p className="mt-4 text-[13px] text-ink-3">
             Demo prototype: gunakan kode{" "}
             <button
               type="button"
+              disabled={busy}
               onClick={() => {
                 setDigits(DEMO_PIN);
                 setTimeout(() => submit(DEMO_PIN), 160);

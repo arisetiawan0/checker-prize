@@ -89,6 +89,17 @@ export const Icon = {
       <path d="m16.5 16.5 3.5 3.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   ),
+  tag: (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 11.2V5.5A1.5 1.5 0 0 1 5.5 4h5.7a2 2 0 0 1 1.4.6l7 7a2 2 0 0 1 0 2.8l-5.2 5.2a2 2 0 0 1-2.8 0l-7-7a2 2 0 0 1-.6-1.4Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <circle cx="8.8" cy="8.8" r="1.3" fill="currentColor" />
+    </svg>
+  ),
   torch: (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
@@ -121,15 +132,17 @@ export const Icon = {
   )
 } as const;
 
-/** Warna thumbnail inisial produk — deterministik dari SKU */
-export function toneOf(sku: string): string {
+/** Warna thumbnail inisial produk — deterministik dari nama (aman utk input kosong) */
+export function toneOf(name: string): string {
   const tones = ["bg-brand-bg text-brand-ink border-brand-line", "bg-ok-bg text-ok border-ok-line", "bg-[#EDF2FA] text-[#46628F] border-[#D9E2F0]", "bg-warn-bg text-warn border-warn-line", "bg-[#F1EEF9] text-[#5D518F] border-[#E0DAF0]", "bg-[#EAF4F1] text-[#3E7E6B] border-[#D3E6E0]"];
+  if (!name) return tones[0];
   let h = 0;
-  for (let i = 2; i < sku.length; i++) h = (h * 31 + sku.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return tones[h % tones.length];
 }
 
 export function initialsOf(name: string): string {
-  const words = name.split(/\s+/).filter(Boolean);
+  const words = (name || "").split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
   return (words[0][0] + (words[1] ? words[1][0] : words[0][1] || "")).toUpperCase();
 }

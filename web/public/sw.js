@@ -1,9 +1,10 @@
 /* Service worker Beauty Price Checker (PRD F5)
    - App shell: stale-while-revalidate untuk aset statis
    - Navigasi: network-first, fallback "/" saat offline
-   - /api/*: tidak di-cache permanen (network saja) — harga harus segar */
+   - /api/*: tidak di-cache permanen (network saja) — harga harus segar
+   Naikkan versi CACHE setiap rilis agar shell lama otomatis terhapus. */
 
-const CACHE = "beauty-price-v1";
+const CACHE = "beauty-price-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

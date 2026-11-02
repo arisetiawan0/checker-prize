@@ -1,114 +1,124 @@
 /**
- * Katalog harga — SERVER ONLY (jangan diimpor dari komponen client).
+ * Katalog harga & engine promo — SERVER ONLY (jangan diimpor dari komponen client).
  *
- * Demo: 30 baris statis dengan jadwal flash relatif terhadap waktu proses server,
- * mencakup kondisi aktif / belum mulai / sudah berakhir.
+ * Sumber data: spreadsheet promo multi-tab (sheets.ts). Cache TTL 45 dtk —
+ * perubahan di spreadsheet terlihat maksimal ~1 menit, kuota Sheets API
+ * terlindungi (PRD §7.4).
  *
- * Ganti ke Google Sheets (PRD §5, §7.4):
- *   1. Implement `loadSheetRows()` memakai googleapis Service Account (read-only).
- *   2. `getCatalog()` sudah menyediakan cache TTL 45 dtk — kuota Sheets API terlindungi,
- *      perubahan harga terlihat maksimal ~1 menit.
+ * Model data:
+ *   PromoRow  — baris di tab promo (SKU PROMO / ONLY DISC REGULER /
+ *               ONLY FLASH SALE / LT PRO), memuat diskon reguler & flash.
+ *   MasterRow — master POS (semua barcode aktif toko), untuk mengenali
+ *               barang non-promo.
+ *
+ * Aturan harga efektif (resolvePrice):
+ *   1. Barcode tidak dikenal di mana pun  → null (404).
+ *   2. Hanya ada di master                → non-promo, harga jual normal.
+ *   3. Event belum mulai / sudah selesai  → harga jual + info jadwal.
+ *   4. Sesi flash berjalan + produk punya disc flash → harga flash,
+ *      countdown sampai akhir sesi.
+ *   5. Selainnya                          → harga disc reguler
+ *      (LT PRO: tier diskon mengikuti tanggal).
  */
 
 import { tryLoadSheetRows } from "./sheets";
+import {
+  EVENT_END_MS,
+  EVENT_START_MS,
+  FLASH_SESSIONS,
+  eventStatus,
+  isoWita,
+  nextSession,
+  sessionAt,
+  sessionEndMs,
+  witaOffset,
+  type EventStatus as EventStatusType
+} from "./promo-config";
 
-export interface SheetRow {
-  sku: string;
+export type PromoTab = "promo" | "only-reguler" | "only-flash" | "lt-pro";
+
+export const PROMO_TAB_LABEL: Record<PromoTab, string> = {
+  "promo": "SKU Promo",
+  "only-reguler": "Only Disc Reguler",
+  "only-flash": "Only Flash Sale",
+  "lt-pro": "LT Pro"
+};
+
+/** Baris promo dari salah satu tab spreadsheet. */
+export interface PromoRow {
   barcode: string;
   nama: string;
-  harga_reguler: number;
-  harga_flash: number | null;
-  flash_mulai: string; // "YYYY-MM-DD HH:mm" WITA
-  flash_selesai: string;
-  kategori: string;
+  tab: PromoTab;
+  pareto: string;
+  harga_jual: number;
+  /** null = tab hanya flash (kolom disc reguler kosong) */
+  disc_reguler: number | null;
+  harga_reguler_diskon?: number;
+  /** null = tab hanya reguler / belum diparse */
+  disc_flash: number | null;
+  harga_flash_diskon?: number;
+  /** khusus LT PRO: tier diskon kedua untuk rentang tanggal berbeda */
+  tier2?: { window: { startMs: number; endMs: number }; disc: number };
 }
 
-const WITA_MS = 8 * 3600 * 1000;
+/** Baris master POS — barang yang ada di toko tapi belum tentu ikut promo. */
+export interface MasterRow {
+  barcode: string;
+  nama: string;
+  harga_jual: number;
+  pareto: string;
+}
 
-function witaOffset(from: Date, minutes: number): string {
-  const w = new Date(from.getTime() + minutes * 60000 + WITA_MS);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return (
-    `${w.getUTCFullYear()}-${p(w.getUTCMonth() + 1)}-${p(w.getUTCDate())}` +
-    ` ${p(w.getUTCHours())}:${p(w.getUTCMinutes())}`
+/* ---------- Demo (env belum diisi) ---------- */
+
+type DemoRow = [barcode: string, nama: string, jual: number, discR: number | null, discF: number | null, tab: PromoTab];
+
+// Mencakup semua kondisi: disc reguler+flash, hanya reguler, hanya flash,
+// LT PRO, non-promo (untuk uji coba manual tanpa spreadsheet).
+const DEMO_RAW: DemoRow[] = [
+  ["8993137691710", "EMINA E/B PENCIL BLACK", 34000, 15, 25, "promo"],
+  ["8993137719094", "EMINA TOTAL ECLIPSE PEN LINER", 58500, 15, 25, "promo"],
+  ["8993137709576", "EMINA SQUEEZE ME UP BROWCARA WOODY 8G", 60500, 15, 25, "promo"],
+  ["8998824552398", "HANASUI SUNSCREEN COLAGEN WATER SPF 30 PA++++ 30GR", 24000, 20, null, "only-reguler"],
+  ["8998824553340", "HANASUI SUNSCREEN COLAGEN WATER SPF 50 PA++++ 30GR", 35500, 20, null, "only-reguler"],
+  ["8994460551528", "FACETOLOGY DEOXIDE BRIGHT+ RO 60GR EX.WHITE", 42500, null, 20, "only-flash"],
+  ["8994460551511", "FACETOLOGY DEOXIDE POWER+ RO 60GR EX.DRY", 42500, null, 20, "only-flash"],
+  ["8998113330232", "LT PRO E/B PENSIL BLACK", 90000, 20, null, "lt-pro"],
+  ["8998113330171", "LT PRO E/B PENSIL BROWN", 90000, 20, null, "lt-pro"],
+  ["4902508798655", "PIGEON SOFTOUCH PLUS NIP 1 BOX M", 51900, null, null, "promo"] // non-promo
+];
+
+function demoPromoRows(): PromoRow[] {
+  return DEMO_RAW.filter(([, , , discR, discF]) => discR !== null || discF !== null).map(
+    ([barcode, nama, jual, discR, discF, tab]) => ({
+      barcode,
+      nama,
+      tab,
+      pareto: "SM",
+      harga_jual: jual,
+      disc_reguler: discR,
+      harga_reguler_diskon: discR !== null ? Math.round(jual * (1 - discR / 100)) : undefined,
+      disc_flash: discF,
+      harga_flash_diskon: discF !== null ? Math.round(jual * (1 - discF / 100)) : undefined,
+      // tier2 LT PRO demo: 25% pada hari terakhir event (8 Nov)
+      ...(tab === "lt-pro"
+        ? { tier2: { window: { startMs: EVENT_END_MS - 24 * 3600 * 1000 + 1, endMs: EVENT_END_MS }, disc: 25 } }
+        : {})
+    })
   );
 }
 
-/** Parse "YYYY-MM-DD HH:mm" sebagai WITA (UTC+8) → epoch ms. Meniru perilaku PRD §6. */
-export function parseWita(s: string): number {
-  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(s.trim());
-  if (!m) return NaN;
-  return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - WITA_MS;
+function demoMasterRows(): MasterRow[] {
+  return DEMO_RAW.map(([barcode, nama, jual]) => ({ barcode, nama, harga_jual: jual, pareto: "SM" }));
 }
 
-function isoWita(ms: number): string {
-  return new Date(ms + WITA_MS).toISOString().replace("Z", "+08:00");
-}
-
-function categoryOf(nama: string): string {
-  const n = nama.toLowerCase();
-  if (/serum|ampoule|essence|retinol|niacinamide|peptide/.test(n)) return "Perawatan";
-  if (/lip|blush|liner|brow|eyeshadow|cushion|foundation|palette|spray|moisturizer/.test(n)) return "Makeup";
-  if (/shampoo|mask .*hair|keratin|scalp/.test(n)) return "Rambut";
-  if (/body|hand/.test(n)) return "Tubuh";
-  return "Skincare";
-}
-
-type RawRow = [sku: string, barcode: string, nama: string, reguler: number, flash: number | null, window: [number, number] | null];
-
-// flash window: [menitRelatifMulai, menitRelatifSelesai] dari waktu proses server
-const RAW: RawRow[] = [
-  ["BK-0001", "8991004102109", "Glow Serum Vit C 30ml", 189000, 139000, [-95, 125]],
-  ["BK-0002", "8991004102208", "Hydra Barrier Cream 50g", 249000, null, null],
-  ["BK-0003", "8991004102307", "Micellar Water 400ml", 119000, 89000, [-160, 20]],
-  ["BK-0004", "8991004102406", "Sunscreen SPF 50 PA++++ 60ml", 159000, 119000, [-30, 150]],
-  ["BK-0005", "8991004102505", "AHA BHA Exfoliating Toner 250ml", 175000, null, null],
-  ["BK-0006", "8991004102604", "Retinol Night Serum 20ml", 279000, 199000, [-300, 60]],
-  ["BK-0007", "8991004102703", "Cushion Foundation #23 15g", 229000, null, null],
-  ["BK-0008", "8991004102802", "Matte Lip Mousse - Velvette", 109000, 79000, [-50, 45]],
-  ["BK-0009", "8991004102901", "Gentle Gel Cleanser 150ml", 98000, null, null],
-  ["BK-0010", "8991004103005", "Peptide Eye Cream 15ml", 215000, 169000, [-500, 200]],
-  ["BK-0011", "8991004103104", "Rice Water Shampoo 320ml", 129000, null, null],
-  ["BK-0012", "8991004103203", "Keratin Repair Hair Mask 250ml", 149000, 109000, [-120, 480]],
-  ["BK-0013", "8991004103302", "Rose Water Face Mist 120ml", 89000, 65000, [25, 95]],
-  ["BK-0014", "8991004103401", "Niacinamide 10% Serum 30ml", 165000, null, null],
-  ["BK-0015", "8991004103500", "Ceramide Barrier Essence 150ml", 199000, 149000, [-240, -30]],
-  ["BK-0016", "8991004103609", "Velvet Blush - Peach Fuzz", 89000, null, null],
-  ["BK-0017", "8991004103708", "Precision Liquid Liner 1.2ml", 79000, 59000, [-400, 90]],
-  ["BK-0018", "8991004103807", "Brow Sculpt Pencil - Taupe", 69000, null, null],
-  ["BK-0019", "8991004103906", "Overnight Sleeping Mask 100ml", 189000, 145000, [-75, 25]],
-  ["BK-0020", "8991004104002", "Vitamin C Brightening Sheet Mask (5 pcs)", 95000, null, null],
-  ["BK-0021", "8991004104101", "Clay Detox Mask 75g", 119000, 85000, [-600, 180]],
-  ["BK-0022", "8991004104200", "Lip Sleeping Butter 20g", 75000, 55000, [-15, 105]],
-  ["BK-0023", "8991004104309", "Body Lotion Shea & Oat 250ml", 109000, null, null],
-  ["BK-0024", "8991004104408", "Hand Cream Amber Vanilla 50ml", 69000, 49000, [-90, 300]],
-  ["BK-0025", "8991004104507", "Pore Cleansing Oil 200ml", 145000, null, null],
-  ["BK-0026", "8991004104606", "Tinted Moisturizer SPF 30 40ml", 185000, 139000, [-180, 30]],
-  ["BK-0027", "8991004104705", "Setting Spray Dewy Fix 100ml", 99000, null, null],
-  ["BK-0028", "8991004104804", "Eyeshadow Palette Muted Muse", 279000, 219000, [-55, 35]],
-  ["BK-0029", "8991004104903", "Scalp Tonic Anti Hairfall 120ml", 155000, null, null],
-  ["BK-0030", "8991004105009", "Collagen Boost Ampoule 7x2ml", 259000, 199000, [-350, 240]]
-];
-
-const BOOT = new Date();
-
-const ROWS: SheetRow[] = RAW.map(([sku, barcode, nama, reguler, flash, win]) => ({
-  sku,
-  barcode,
-  nama,
-  harga_reguler: reguler,
-  harga_flash: flash,
-  flash_mulai: flash !== null && win ? witaOffset(BOOT, win[0]) : "",
-  flash_selesai: flash !== null && win ? witaOffset(BOOT, win[1]) : "",
-  kategori: categoryOf(nama)
-}));
-
-// --- Cache katalog (TTL, PRD §7.4) ---
-// Urutan sumber data: Google Sheets → data terakhir yang masih valid (bila She
+/* ---------- Cache katalog (TTL, PRD §7.4) ---------- */
+// Urutan sumber data: Google Sheets → data terakhir yang masih valid (bila
 // fetch gagal — hardening risiko §12) → data demo.
-// simpan di globalThis agar selamat dari reload modul (dev HMR)
+
 interface CatalogCache {
-  rows: SheetRow[];
+  promo: Map<string, PromoRow>;
+  master: Map<string, MasterRow>;
   fetchedAt: number;
   source: CatalogSource;
   /** true = Sheets pernah hidup, fetch terakhir gagal → sedang menyajikan data basi (§12) */
@@ -120,17 +130,29 @@ export type CatalogSource = "sheets" | "demo";
 const TTL_MS = 45_000;
 const g = globalThis as unknown as { __beautyCatalog?: CatalogCache };
 
+function buildCache(promoRows: PromoRow[], masterRows: MasterRow[]): Pick<CatalogCache, "promo" | "master"> {
+  const promo = new Map<string, PromoRow>();
+  for (const r of promoRows) promo.set(r.barcode.toLowerCase(), r);
+  const master = new Map<string, MasterRow>();
+  for (const r of masterRows) if (!master.has(r.barcode.toLowerCase())) master.set(r.barcode.toLowerCase(), r);
+  return { promo, master };
+}
+
 export async function getCatalog(): Promise<CatalogCache> {
   const cur = g.__beautyCatalog;
   if (cur && Date.now() - cur.fetchedAt <= TTL_MS) return cur;
 
   try {
     const fresh = await tryLoadSheetRows();
-    if (fresh && fresh.rows.length > 0) {
-      g.__beautyCatalog = { rows: fresh.rows, fetchedAt: fresh.fetchedAt, source: "sheets" };
+    if (fresh && (fresh.promoRows.length > 0 || fresh.masterRows.length > 0)) {
+      g.__beautyCatalog = {
+        ...buildCache(fresh.promoRows, fresh.masterRows),
+        fetchedAt: fresh.fetchedAt,
+        source: "sheets"
+      };
       return g.__beautyCatalog;
     }
-    if (fresh && fresh.rows.length === 0) {
+    if (fresh) {
       console.warn("[sheets] 0 baris valid — pertahankan data lama/demo (hardening §12)");
     }
   } catch (err) {
@@ -138,7 +160,11 @@ export async function getCatalog(): Promise<CatalogCache> {
   }
 
   if (cur) return pertahankan(cur);
-  g.__beautyCatalog = { rows: ROWS, fetchedAt: Date.now(), source: "demo" };
+  g.__beautyCatalog = {
+    ...buildCache(demoPromoRows(), demoMasterRows()),
+    fetchedAt: Date.now(),
+    source: "demo"
+  };
   return g.__beautyCatalog;
 }
 
@@ -163,87 +189,179 @@ export function buildCatalogHeaders(c: CatalogCache): HeadersInit {
   return headers;
 }
 
-export function findRow(rows: SheetRow[], code: string): SheetRow | null {
-  const c = code.trim().toLowerCase();
-  if (!c) return null;
-  return rows.find((r) => r.barcode.toLowerCase() === c) ?? rows.find((r) => r.sku.toLowerCase() === c) ?? null;
-}
+/* ---------- Engine harga efektif ---------- */
 
-export type FlashResolve =
-  | {
-      status: "active";
-      price: number;
-      discount_percent: number;
-      starts_at: string;
-      ends_at: string;
-      seconds_remaining: number;
-      endMs: number;
-    }
-  | { status: "upcoming"; price: number; startMs: number }
-  | null;
+export interface PriceResolve {
+  kind: "flash" | "disc" | "normal";
+  /** harga efektif sekarang */
+  price: number;
+  /** persen hemat vs harga jual (bila ada diskon) */
+  discount_percent: number | null;
+  /** harga jual normal (tanpa promo) */
+  harga_jual: number;
+  /** harga disc reguler bila produk ikut promo reguler */
+  promo_price: number | null;
+  flash_sale: {
+    price: number;
+    discount_percent: number;
+    starts_at: string;
+    ends_at: string;
+    seconds_remaining: number;
+  } | null;
+  flash_upcoming: boolean;
+  flash_upcoming_price: number | null;
+  flash_upcoming_start: string | null;
+  promo_status: EventStatusType;
+  non_promo: boolean;
+}
 
 /**
- * Aturan harga efektif — PRD §6.
- * Flash aktif hanya jika: harga_flash terisi && < reguler && sekarang ∈ [mulai, selesai].
- * Tanpa kolom periode (Opsi B): harga_flash terisi = aktif.
+ * Aturan harga efektif — inti aplikasi. Lihat dokumentasi header modul.
+ * `nowMs` selalu dari server (bukan jam HP, §6).
  */
-export function resolveFlash(row: SheetRow, nowMs: number): FlashResolve {
-  if (!row.harga_flash || row.harga_flash >= row.harga_reguler) return null;
-  const start = parseWita(row.flash_mulai);
-  const end = parseWita(row.flash_selesai);
-  const discount = Math.round(((row.harga_reguler - row.harga_flash) / row.harga_reguler) * 100);
+export function resolvePrice(
+  promo: PromoRow | undefined,
+  master: MasterRow | undefined,
+  nowMs: number
+): PriceResolve | null {
+  if (!promo && !master) return null;
 
-  if (!isNaN(start) && !isNaN(end)) {
-    if (nowMs >= start && nowMs <= end) {
-      return {
-        status: "active",
-        price: row.harga_flash,
-        discount_percent: discount,
-        starts_at: isoWita(start),
-        ends_at: isoWita(end),
-        seconds_remaining: Math.max(0, Math.round((end - nowMs) / 1000)),
-        endMs: end
-      };
-    }
-    if (nowMs < start) return { status: "upcoming", price: row.harga_flash, startMs: start };
-    return null; // sudah berakhir
-  }
-  // Opsi B
-  return {
-    status: "active",
-    price: row.harga_flash,
-    discount_percent: discount,
-    starts_at: isoWita(nowMs),
-    ends_at: "",
-    seconds_remaining: null as unknown as number,
-    endMs: NaN
+  const harga_jual = promo?.harga_jual ?? master!.harga_jual;
+  const base: PriceResolve = {
+    kind: "normal",
+    price: harga_jual,
+    discount_percent: null,
+    harga_jual,
+    promo_price: null,
+    flash_sale: null,
+    flash_upcoming: false,
+    flash_upcoming_price: null,
+    flash_upcoming_start: null,
+    promo_status: eventStatus(nowMs),
+    non_promo: !promo
   };
+
+  if (!promo) return base; // hanya di master → non-promo
+
+  // diskon reguler efektif (LT PRO: tier mengikuti tanggal)
+  const discR = efektifDiscReguler(promo, nowMs);
+  if (discR !== null) base.promo_price = Math.round(harga_jual * (1 - discR / 100));
+
+  // event di luar rentang → promo tidak berlaku
+  if (base.promo_status !== "live") return base;
+
+  // 1) sesi flash berjalan + produk punya disc flash
+  const session = sessionAt(nowMs);
+  if (session && promo.harga_flash_diskon && promo.harga_flash_diskon < harga_jual) {
+    const endMs = sessionEndMs(session, nowMs);
+    base.kind = "flash";
+    base.price = promo.harga_flash_diskon;
+    base.discount_percent = promo.disc_flash ?? persen(harga_jual, promo.harga_flash_diskon);
+    base.flash_sale = {
+      price: promo.harga_flash_diskon,
+      discount_percent: base.discount_percent,
+      starts_at: isoWita(nowMs),
+      ends_at: isoWita(endMs),
+      seconds_remaining: Math.max(0, Math.round((endMs - nowMs) / 1000))
+    };
+    return base;
+  }
+
+  // 2) di luar sesi tapi produk hanya punya flash → info sesi berikutnya
+  if (!promo.harga_reguler_diskon && promo.harga_flash_diskon) {
+    const next = nextSession(nowMs);
+    if (next) {
+      base.flash_upcoming = true;
+      base.flash_upcoming_price = promo.harga_flash_diskon;
+      base.flash_upcoming_start = isoWita(next.startMs);
+    }
+    return base;
+  }
+
+  // 3) disc reguler aktif selama event
+  if (base.promo_price !== null && base.promo_price < harga_jual) {
+    base.kind = "disc";
+    base.price = base.promo_price;
+    base.discount_percent = discR;
+  }
+  return base;
 }
 
-export function buildPricePayload(row: SheetRow, updatedAtMs: number) {
+/** Disc reguler efektif: LT PRO punya tier kedua untuk rentang tanggal lain. */
+function efektifDiscReguler(promo: PromoRow, nowMs: number): number | null {
+  if (promo.tab === "lt-pro" && promo.tier2) {
+    const { startMs, endMs } = promo.tier2.window;
+    if (nowMs >= startMs && nowMs <= endMs) return promo.tier2.disc;
+  }
+  return promo.disc_reguler;
+}
+
+function persen(harga: number, diskon: number): number {
+  return Math.max(1, Math.round(((harga - diskon) / harga) * 100));
+}
+
+/* ---------- Payload API ---------- */
+
+export function buildPricePayload(
+  promo: PromoRow | undefined,
+  master: MasterRow | undefined,
+  updatedAtMs: number
+) {
   const nowMs = Date.now();
-  const flash = resolveFlash(row, nowMs);
-  const active = flash && flash.status === "active" ? flash : null;
+  const r = resolvePrice(promo, master, nowMs)!;
+  const row = promo ?? master!;
+  const tab = promo?.tab ?? null;
 
   return {
     ok: true as const,
-    product: { sku: row.sku, barcode: row.barcode, name: row.nama, category: row.kategori },
-    regular_price: row.harga_reguler,
-    flash_sale: active
-      ? {
-          active: true as const,
-          price: active.price,
-          discount_percent: active.discount_percent,
-          starts_at: active.starts_at,
-          ends_at: active.ends_at,
-          seconds_remaining: active.seconds_remaining
-        }
-      : null,
-    flash_upcoming: flash?.status === "upcoming",
-    flash_upcoming_price: flash?.status === "upcoming" ? flash.price : null,
-    flash_upcoming_start: flash?.status === "upcoming" ? isoWita(flash.startMs) : null,
-    effective_price: active ? active.price : row.harga_reguler,
+    product: {
+      barcode: row.barcode,
+      name: row.nama,
+      pareto: promo?.pareto ?? master!.pareto,
+      promo_tab: tab
+    },
+    regular_price: r.harga_jual,
+    promo_price: r.promo_price,
+    promo_status: r.promo_status,
+    non_promo: r.non_promo,
+    promo_tab_label: tab ? PROMO_TAB_LABEL[tab] : null,
+    flash_sale: r.flash_sale,
+    flash_upcoming: r.flash_upcoming,
+    flash_upcoming_price: r.flash_upcoming_price,
+    flash_upcoming_start: r.flash_upcoming_start,
+    /** harga flash terjadwal di spreadsheet (tampil walau sesi belum aktif) */
+    flash_scheduled_price: promo?.harga_flash_diskon ?? null,
+    effective_price: r.price,
+    event: {
+      status: r.promo_status,
+      start: isoWita(EVENT_START_MS),
+      end: isoWita(EVENT_END_MS),
+      /** jadwal sesi flash harian (untuk tampilan saat flash belum aktif) */
+      sessions: FLASH_SESSIONS.map((s) => s.label)
+    },
     data_updated_at: isoWita(updatedAtMs),
-    data_updated_hhmm: witaOffset(new Date(updatedAtMs), 0).split(" ")[1]
+    data_updated_hhmm: witaOffset(new Date(updatedAtMs)).split(" ")[1]
   };
+}
+
+/** Ringkasan per item untuk /api/search. */
+export function buildSearchItem(promo: PromoRow | undefined, master: MasterRow | undefined, nowMs: number) {
+  const r = resolvePrice(promo, master, nowMs)!;
+  const row = promo ?? master!;
+  return {
+    barcode: row.barcode,
+    name: row.nama,
+    regular_price: r.harga_jual,
+    promo: !r.non_promo,
+    disc_reguler: promo?.disc_reguler ?? null,
+    disc_flash: promo?.disc_flash ?? null,
+    flash_active: r.kind === "flash",
+    flash_price: r.kind === "flash" ? r.price : r.flash_upcoming_price,
+    effective_price: r.price
+  };
+}
+
+/** Jadwal event untuk kebutuhan tampilan (label tanggal mulai/berakhir). */
+export function eventInfo() {
+  return { start: EVENT_START_MS, end: EVENT_END_MS };
 }

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { staffOk, rateLimit, unauthorized } from "@/lib/auth";
-import { buildCatalogHeaders, getCatalog, findRow, buildPricePayload } from "@/lib/catalog";
+import { buildCatalogHeaders, getCatalog, buildPricePayload } from "@/lib/catalog";
 import type { PriceNotFound } from "@/lib/types";
 
 /**
- * GET /api/price?code={barcode|sku} — PRD §8
+ * GET /api/price?code={barcode} — PRD §8
  * 200: payload harga; 404: {"error":"PRODUCT_NOT_FOUND"}; 401: butuh cookie staff.
  */
 export async function GET(req: NextRequest) {
@@ -18,12 +18,14 @@ export async function GET(req: NextRequest) {
   }
 
   const catalog = await getCatalog();
-  const row = findRow(catalog.rows, code);
-  if (!row) {
+  const key = code.toLowerCase();
+  const promo = catalog.promo.get(key);
+  const master = catalog.master.get(key);
+  if (!promo && !master) {
     return NextResponse.json({ error: "PRODUCT_NOT_FOUND" } satisfies PriceNotFound, { status: 404 });
   }
 
-  return NextResponse.json(buildPricePayload(row, catalog.fetchedAt), {
+  return NextResponse.json(buildPricePayload(promo, master, catalog.fetchedAt), {
     headers: buildCatalogHeaders(catalog)
   });
 }

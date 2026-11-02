@@ -26,9 +26,11 @@ web/
 │       ├── price/route.ts     # GET /api/price?code=  → 200 | 404 PRODUCT_NOT_FOUND (PRD §8)
 │       └── search/route.ts    # GET /api/search?q=    → maks 20 hasil
 ├── lib/
-│   ├── catalog.ts   [SERVER]  # katalog + cache TTL 45 dtk + resolveFlash (aturan PRD §6, WITA UTC+8)
-│   ├── types.ts               # kontrak API bersama
-│   └── client-api.ts          # fetch klien + format Rupiah/tanggal
+│   ├── promo-config.ts [SERVER] # jadwal event + sesi flash sale WITA (env: EVENT_*, FLASH_SESSIONS)
+│   ├── sheets.ts      [SERVER]  # Service Account → values:batchGet 4 tab promo + master POS
+│   ├── catalog.ts     [SERVER]  # katalog (Map barcode→promo/master) + cache TTL 45 dtk + resolvePrice
+│   ├── types.ts                 # kontrak API bersama
+│   └── client-api.ts            # fetch klien + format Rupiah/tanggal
 ├── components/
 │   ├── AppShell.tsx           # orkestrasi state: view, riwayat, sheet, toast, online/offline
 │   ├── PinGate.tsx            # gerbang kode akses staff (demo; produksi → verifikasi server)
@@ -47,18 +49,34 @@ web/
 
 ## Harga di-resolve di server (PRD §6)
 
-`lib/catalog.ts::resolveFlash` — flash aktif hanya jika `harga_flash` terisi && < reguler &&
-`sekarang ∈ [flash_mulai, flash_selesai]` (WITA). Respons memuat `seconds_remaining` dari server,
-jadi countdown tidak bergantung jam perangkat. Katalog di-cache 45 detik — perubahan spreadsheet
-terlihat ≤ ~1 menit dan kuota API sumber terlindungi (PRD §7.4).
+`lib/catalog.ts::resolvePrice` — urutan aturan: barcode tak dikenal → 404; hanya di master POS →
+non-promo (harga jual); event belum mulai/berakhir → harga jual + banner jadwal; sesi flash
+berjalan + produk punya disc flash → harga flash + countdown sampai akhir sesi; selainnya →
+harga disc reguler (LT PRO: tier per tanggal 5–7 vs 8 November). Semua waktu WITA (UTC+8),
+`seconds_remaining` dari server sehingga countdown tidak bergantung jam perangkat.
+Katalog di-cache 45 detik — perubahan spreadsheet terlihat ≤ ~1 menit (PRD §7.4).
 
-## Ganti demo → Google Sheets
+## Sumber data: spreadsheet promo multi-tab
 
-1. `npm i googleapis`, buat service account read-only, share spreadsheet ke email SA.
-2. Di `lib/catalog.ts`, ganti isi cache `getCatalog()` dengan `loadSheetRows()` memakai struktur
-   kolom PRD §5.2 (`sku, barcode, nama, harga_reguler, harga_flash, flash_mulai, flash_selesai`).
-3. Simpan kredensial di env (`GOOGLE_SERVICE_ACCOUNT_JSON`), tidak pernah di klien.
-4. PIN demo di `PinGate.tsx` → ganti dengan POST /api/auth server-side (PRD §7.3).
+Satu spreadsheet (id di `SPREADSHEET_ID`), 4 tab produk + master POS tersisip kolom N–Q:
+
+| Tab (env) | Kolom |
+|---|---|
+| `SHEET_TAB_PROMO` (SKU PROMO) | BARCODE, NAMA, H. JUAL, DISC REGULER, H. DISC REGULER, DISC FLASH SALE, H. DISC FLASH SALE, PARETO |
+| `SHEET_TAB_ONLY_REGULER` | sama, kolom flash kosong |
+| `SHEET_TAB_ONLY_FLASH` | sama, kolom reguler kosong |
+| `SHEET_TAB_LT_PRO` | DIS (5-7 NOVEMBER) / DIS (8 NOVEMBER) — tier per tanggal |
+
+Satu panggilan `values:batchGet` per refresh. Parser menerima format sel Indonesia
+(`"34.000"`, `"Rp 29.900,00"`, `"15%"`, `"-"`). Barang non-promo tetap dikenali dari
+master POS dan ditampilkan "Harga Normal · Non-Promo".
+
+## Ganti/migrasi spreadsheet
+
+1. Buat service account read-only, share spreadsheet ke email SA (role Viewer).
+2. Isi `SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` di `.env.local`
+   (lihat `.env.example`). Sesuaikan nama tab bila berbeda.
+3. Jadwal event/sesi: `EVENT_START`, `EVENT_END`, `FLASH_SESSIONS` — tanpa deploy ulang.
 
 ## Deployment
 

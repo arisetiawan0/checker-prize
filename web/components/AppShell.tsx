@@ -27,7 +27,7 @@ export function AppShell() {
   const [result, setResult] = useState<PriceResult | null>(null);
   const [searchSeed, setSearchSeed] = useState("");
   const [nowHHMM, setNowHHMM] = useState("--:--");
-  const { items: toastItems, show } = useToasts();
+  const { items: toastItems, show, dismiss } = useToasts();
 
   /* --- boot: sesi + riwayat --- */
   useEffect(() => {
@@ -78,12 +78,12 @@ export function AppShell() {
         const res = await fetchPrice(code);
         setResult(res);
         if ("notFound" in res === false) {
+          const kind = res.non_promo ? "normal" : res.flash_sale ? "flash" : res.promo_price !== null ? "disc" : "normal";
           pushHistory({
             code: res.product.barcode || code,
-            sku: res.product.sku,
             name: res.product.name,
             price: res.effective_price,
-            flash: !!res.flash_sale,
+            kind,
             at: Date.now()
           });
         }
@@ -126,7 +126,13 @@ export function AppShell() {
   }
 
   return (
-    <main className="min-h-dvh">
+    <main id="konten" className="min-h-dvh">
+      <a
+        href="#konten"
+        className="sr-only rounded-b-xl bg-night px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[80]"
+      >
+        Lewati ke konten utama
+      </a>
       {view === "scan" && (
         <ScanView
           active
@@ -151,11 +157,9 @@ export function AppShell() {
         onBack={() => setView("scan")}
         onPick={(code) => void openPrice(code)}
         onClear={() => {
-          if (confirm("Hapus semua riwayat scan di perangkat ini?")) {
-            setHistory([]);
-            localStorage.removeItem(HISTORY_KEY);
-            show("ok", "Riwayat dihapus");
-          }
+          setHistory([]);
+          localStorage.removeItem(HISTORY_KEY);
+          show("ok", "Riwayat dihapus");
         }}
         onStartScan={() => setView("scan")}
       />
@@ -172,7 +176,7 @@ export function AppShell() {
         onManualSearch={(code) => goSearch(code.length > 3 ? code : "")}
         onFlashExpired={handleFlashExpired}
       />
-      <ToastRegion items={toastItems} />
+      <ToastRegion items={toastItems} dismiss={dismiss} />
     </main>
   );
 }

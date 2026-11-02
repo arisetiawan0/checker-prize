@@ -17,16 +17,18 @@ export function useToasts() {
   const [items, setItems] = useState<ToastItem[]>([]);
   const seq = useRef(0);
 
+  const dismiss = useCallback((id: number) => {
+    setItems((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
+    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 280);
+  }, []);
+
   const show = useCallback((kind: ToastKind, msg: string, ms = 3200) => {
     const id = ++seq.current;
     setItems((prev) => [...prev, { id, kind, msg, leaving: false }]);
-    setTimeout(() => {
-      setItems((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
-      setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 280);
-    }, ms);
-  }, []);
+    setTimeout(() => dismiss(id), ms);
+  }, [dismiss]);
 
-  return { items, show };
+  return { items, show, dismiss };
 }
 
 const KIND_ICON: Record<ToastKind, React.ReactNode> = {
@@ -41,7 +43,7 @@ const KIND_COLOR: Record<ToastKind, string> = {
   info: "text-[#8AB6FF]"
 };
 
-export function ToastRegion({ items }: { items: ToastItem[] }) {
+export function ToastRegion({ items, dismiss }: { items: ToastItem[]; dismiss: (id: number) => void }) {
   return (
     <div
       aria-live="polite"
@@ -55,7 +57,15 @@ export function ToastRegion({ items }: { items: ToastItem[] }) {
           }`}
         >
           <span className={`shrink-0 [&>svg]:h-[18px] [&>svg]:w-[18px] ${KIND_COLOR[t.kind]}`}>{KIND_ICON[t.kind]}</span>
-          <span>{t.msg}</span>
+          <span className="flex-1">{t.msg}</span>
+          <button
+            type="button"
+            aria-label="Tutup notifikasi"
+            onClick={() => dismiss(t.id)}
+            className="pointer-events-auto -mr-1.5 grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full text-white/55 transition hover:bg-white/[0.08] hover:text-white [&_svg]:h-[16px] [&_svg]:w-[16px]"
+          >
+            {Icon.close}
+          </button>
         </div>
       ))}
     </div>

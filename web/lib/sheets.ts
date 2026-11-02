@@ -5,23 +5,31 @@
  * tambahan (JWT ditandatangani pakai node:crypto). Token akses di-cache
  * sampai ~5 menit sebelum kadaluarsa.
  *
+ * Spreadsheet promo Warehouse Lippo Plaza berisi beberapa tab (lihat
+ * promo-config.ts untuk nama tab yang bisa dioverride env):
+ *   - tab promo utama (SKU PROMO)        : BARCODE, NAMA, H. JUAL, DISC REGULER,
+ *                                          H. DISC REGULER, DISC FLASH SALE,
+ *                                          H. DISC FLASH SALE, PARETO
+ *   - tab hanya disc reguler             : sama, kolom DISC FLASH kosong/"-"
+ *   - tab hanya flash sale               : kolom DISC REGULER kosong/"-"
+ *   - tab LT PRO                         : DIS (5-7 NOVEMBER) / DIS (8 NOVEMBER)
+ *   - master POS tersisip di kolom kanan : BarcodeAktif, Nama, HJual, Pareto
+ *
+ * Semua tab diambil dalam SATU permintaan values:batchGet per refresh —
+ * frekuensi refresh dibatasi cache TTL 45 dtk di catalog.ts.
+ *
  * Env yang dibaca (lihat web/.env.example):
  *   SPREADSHEET_ID                 id spreadsheet (/d/INI_ID/edit)
  *   GOOGLE_SERVICE_ACCOUNT_EMAIL   client_email dari file JSON key
  *   GOOGLE_PRIVATE_KEY             private_key dari file JSON key
- *   SHEET_RANGE                    default "A1:Z5000"
- *   SHEET_TAB                      opsional — nama tab, mis. "Data"
- *
- * Baris pertama dianggap header. Pemetaan kolom fleksibel (case-insensitive,
- * toleran spasi/garis bawah): kolom `nama` juga cocok dengan `name`/`produk`.
- * Header wajib hilang → SheetsParseError berisi daftar header terbaca.
  *
  * Kalau env belum diisi → tryLoadSheetRows() mengembalikan null (bukan error)
  * dan aplikasi lanjut memakai data demo. Jadi deploy kosong tetap jalan.
  */
 
 import { createSign } from "node:crypto";
-import type { SheetRow } from "./catalog";
+import type { PromoRow, PromoTab, MasterRow } from "./catalog";
+import { EVENT_START_MS } from "./promo-config";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SHEETS_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
@@ -33,8 +41,9 @@ export class SheetsConfigError extends Error {}
 export class SheetsFetchError extends Error {}
 export class SheetsParseError extends Error {}
 
-export interface LoadedRows {
-  rows: SheetRow[];
+export interface LoadedCatalog {
+  promoRows: PromoRow[];
+  masterRows: MasterRow[];
   fetchedAt: number;
 }
 
@@ -45,27 +54,83 @@ function env(name: string): string | undefined {
   return v && v.trim() ? v.trim() : undefined;
 }
 
+function tabName(envName: string, fallback: string): string {
+  return env(envName) ?? fallback;
+}
+
 export function sheetsConfigured(): boolean {
   return Boolean(env("SPREADSHEET_ID") && env("GOOGLE_SERVICE_ACCOUNT_EMAIL") && env("GOOGLE_PRIVATE_KEY"));
 }
 
 /** Kembalikan null jika env belum lengkap (mode demo). */
-export async function tryLoadSheetRows(): Promise<LoadedRows | null> {
+export async function tryLoadSheetRows(): Promise<LoadedCatalog | null> {
   if (!sheetsConfigured()) return null;
-  const rows = await loadSheetRows();
-  return { rows, fetchedAt: Date.now() };
+  const { promoRows, masterRows } = await loadCatalog();
+  return { promoRows, masterRows, fetchedAt: Date.now() };
 }
 
-export async function loadSheetRows(): Promise<SheetRow[]> {
+/* ---------- Definisi range batchGet ---------- */
+
+interface TabSpec {
+  key: PromoTab;
+  envName: string;
+  fallback: string;
+}
+
+const TAB_SPECS: TabSpec[] = [
+  { key: "promo", envName: "SHEET_TAB_PROMO", fallback: "SKU PROMO" },
+  { key: "only-reguler", envName: "SHEET_TAB_ONLY_REGULER", fallback: "ONLY DISC REGULER" },
+  { key: "only-flash", envName: "SHEET_TAB_ONLY_FLASH", fallback: "ONLY FLASH SALE" },
+  { key: "lt-pro", envName: "SHEET_TAB_LT_PRO", fallback: "LT PRO" }
+];
+
+/** Kolom master POS tersisip di tiap tab: N..Q = BarcodeAktif, Nama, HJual, Pareto */
+const MASTER_RANGE_COLUMNS = "N1:Q100000";
+const PROMO_RANGE_COLUMNS = "A1:H100000";
+
+function buildRanges(): string[] {
+  const ranges = TAB_SPECS.map((t) => `'${tabName(t.envName, t.fallback)}'!${PROMO_RANGE_COLUMNS}`);
+  // master cukup diambil dari tab promo utama saja (identik di semua tab)
+  const mainTab = tabName(TAB_SPECS[0].envName, TAB_SPECS[0].fallback);
+  ranges.push(`'${mainTab}'!${MASTER_RANGE_COLUMNS}`);
+  return ranges;
+}
+
+async function loadCatalog(): Promise<{ promoRows: PromoRow[]; masterRows: MasterRow[] }> {
   const spreadsheetId = env("SPREADSHEET_ID") as string;
   const email = env("GOOGLE_SERVICE_ACCOUNT_EMAIL") as string;
   const privateKey = normalizeKey(env("GOOGLE_PRIVATE_KEY") as string);
-  const tab = env("SHEET_TAB");
-  const range = env("SHEET_RANGE") ?? "A1:Z5000";
-  const a1 = tab ? `${tab}!${range.replace(/^[^!]*!/, "")}` : range;
 
-  const values = await fetchSheetValues(spreadsheetId, a1, await getAccessToken(email, privateKey));
-  return parseGrid(values);
+  const ranges = buildRanges();
+  const values = await batchGetValues(spreadsheetId, ranges, await getAccessToken(email, privateKey));
+
+  const promoRows: PromoRow[] = [];
+  const seen = new Set<string>();
+  let masterRows: MasterRow[] = [];
+
+  TAB_SPECS.forEach((spec, i) => {
+    const grid = values[i] ?? [];
+    const parsed = parsePromoTab(grid, spec.key);
+    for (const row of parsed) {
+      const k = row.barcode.toLowerCase();
+      if (seen.has(k)) {
+        console.warn(`[sheets] barcode duplikat antar-tab, baris pertama dipakai: ${row.barcode} (${spec.key})`);
+        continue;
+      }
+      seen.add(k);
+      promoRows.push(row);
+    }
+  });
+
+  // range terakhir = master POS
+  const masterGrid = values[TAB_SPECS.length] ?? [];
+  masterRows = parseMasterTab(masterGrid);
+  if (masterRows.length === 0) {
+    console.warn("[sheets] master POS kosong — barang non-promo tidak akan dikenali");
+  }
+
+  console.info(`[sheets] selesai: ${promoRows.length} baris promo, ${masterRows.length} master`);
+  return { promoRows, masterRows };
 }
 
 function normalizeKey(raw: string): string {
@@ -125,10 +190,14 @@ async function getAccessToken(email: string, privateKey: string): Promise<string
   return g.__beautySheetsToken.token;
 }
 
-async function fetchSheetValues(spreadsheetId: string, range: string, token: string): Promise<string[][]> {
-  const url =
-    `${SHEETS_BASE}/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}` +
-    `?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`;
+async function batchGetValues(
+  spreadsheetId: string,
+  ranges: string[],
+  token: string
+): Promise<string[][][]> {
+  const params = new URLSearchParams({ majorDimension: "ROWS", valueRenderOption: "FORMATTED_VALUE" });
+  for (const r of ranges) params.append("ranges", r);
+  const url = `${SHEETS_BASE}/${encodeURIComponent(spreadsheetId)}/values:batchGet?${params.toString()}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 
   if (res.status === 403) {
@@ -143,135 +212,197 @@ async function fetchSheetValues(spreadsheetId: string, range: string, token: str
     throw new SheetsFetchError(`Sheets API HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
   }
 
-  const data = (await res.json()) as { values?: unknown };
-  if (!Array.isArray(data.values)) throw new SheetsFetchError("Sheets API: respons tanpa values");
-  return data.values as string[][];
+  const data = (await res.json()) as { valueRanges?: Array<{ values?: unknown }> };
+  if (!Array.isArray(data.valueRanges)) throw new SheetsFetchError("Sheets API: respons tanpa valueRanges");
+  return data.valueRanges.map((vr) => (Array.isArray(vr.values) ? (vr.values as string[][]) : []));
 }
 
-/* ---------- Parse & validasi (PRD §5.2, §5.3) ---------- */
+/* ---------- Parse sel ---------- */
 
-/** Normalisasi nama header: huruf kecil, tanpa spasi/garis bawah. */
-function canonHeader(s: string): string {
-  return s.trim().toLowerCase().replace(/[\s_\-]+/g, "");
+/** Normalisasi sel: trim, buang tanda kutip formula, collapse spasi ganda. */
+function cell(v: unknown): string {
+  return String(v ?? "")
+    .replace(/^'/, "")
+    .trim();
 }
 
-const COLUMN_ALIASES: Record<keyof Omit<SheetRow, "kategori">, string[]> = {
-  sku: ["sku", "kodeproduk", "kode"],
-  barcode: ["barcode", "ean", "upc"],
-  nama: ["nama", "name", "namaproduk", "produk", "product", "namabarang"],
-  harga_reguler: ["hargareguler", "harga", "regular", "regularprice", "harganormal"],
-  harga_flash: ["hargaflash", "flashsale", "flashprice", "hargapromo"],
-  flash_mulai: ["flashmulai", "mulai", "start", "flashstart", "starts", "jammulai"],
-  flash_selesai: ["flashselesai", "selesai", "end", "akhir", "flashend", "ends", "jamselesai"]
-};
-
-const KATEGORI_ALIASES = ["kategori", "category"];
-
-function parseGrid(values: string[][]): SheetRow[] {
-  const [header, ...rows] = values;
-  if (!header || header.length === 0) {
-    throw new SheetsParseError("Sheet kosong — baris pertama harus header kolom");
+/**
+ * "34.000", "Rp 29.900,00", " 34.000 " → 34000 (PRD §5.3: sel non-angka → null).
+ * Konvensi Indonesia: titik = pemisah ribuan, koma = desimal.
+ */
+export function parseRupiahID(s: string): number | null {
+  const t = cell(s);
+  if (!t || t === "-") return null;
+  // buang semua kecuali digit, koma, titik, minus
+  let cleaned = t.replace(/[^\d.,-]/g, "");
+  if (!cleaned || !/\d/.test(cleaned)) return null;
+  const neg = cleaned.startsWith("-");
+  cleaned = cleaned.replace(/-/g, "");
+  if (cleaned.includes(",")) {
+    // koma = desimal: "29.900,00" → "29900.00"
+    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+  } else {
+    // titik = ribuan: "34.000" → "34000"
+    cleaned = cleaned.replace(/\./g, "");
   }
-
-  const idx: Partial<Record<keyof Omit<SheetRow, "kategori">, number>> = {};
-  let kategoriIdx = -1;
-  for (let c = 0; c < header.length; c++) {
-    const h = canonHeader(String(header[c] ?? ""));
-    if (!h) continue;
-    for (const key of Object.keys(COLUMN_ALIASES) as Array<keyof typeof COLUMN_ALIASES>) {
-      if (idx[key] === undefined && COLUMN_ALIASES[key].includes(h)) idx[key] = c;
-    }
-    if (kategoriIdx === -1 && KATEGORI_ALIASES.includes(h)) kategoriIdx = c;
-  }
-
-  const missing = (["sku", "barcode", "nama", "harga_reguler"] as const).filter((k) => idx[k] === undefined);
-  if (missing.length > 0) {
-    const legible = header.map((h) => `"${h}"`).join(", ");
-    throw new SheetsParseError(
-      `Header wajib tidak ditemukan: ${missing.join(", ")}. Header terbaca: ${legible}`
-    );
-  }
-
-  const seenSku = new Set<string>();
-  const seenBarcode = new Set<string>();
-  const out: SheetRow[] = [];
-  let skipped = 0;
-
-  for (const raw of rows) {
-    const cell = (k: keyof typeof idx) => (idx[k] === undefined ? "" : String(raw[idx[k]!] ?? "").trim());
-    const sku = cell("sku");
-    const barcode = cell("barcode");
-    const nama = cell("nama");
-    const reguler = parseRupiah(cell("harga_reguler"));
-
-    // baris kosong total → lewati diam-diam
-    if (!sku && !barcode && !nama) continue;
-
-    if (!sku || !barcode || !nama || reguler === null) {
-      skipped++;
-      console.warn(`[sheets] baris dilewati (sku="${sku}" barcode="${barcode}"): data wajib kosong/invalid`);
-      continue;
-    }
-    if (seenSku.has(sku.toLowerCase()) || seenBarcode.has(barcode.toLowerCase())) {
-      skipped++;
-      console.warn(`[sheets] duplikat diabaikan (PRD §5.3): sku="${sku}" barcode="${barcode}"`);
-      continue;
-    }
-
-    const harga_flash = parseRupiah(cell("harga_flash"));
-    if (harga_flash !== null && harga_flash >= reguler) {
-      skipped++;
-      console.warn(`[sheets] harga_flash >= reguler, flash diabaikan: sku="${sku}"`);
-      continue;
-    }
-
-    seenSku.add(sku.toLowerCase());
-    seenBarcode.add(barcode.toLowerCase());
-    out.push({
-      sku,
-      barcode,
-      nama,
-      harga_reguler: reguler,
-      harga_flash,
-      flash_mulai: normTanggal(cell("flash_mulai")),
-      flash_selesai: normTanggal(cell("flash_selesai")),
-      kategori: kategoriIdx >= 0 ? String(raw[kategoriIdx] ?? "").trim() : ""
-    });
-  }
-
-  if (skipped > 0) console.info(`[sheets] selesai: ${out.length} baris valid, ${skipped} dilewati`);
-  return out;
-}
-
-/** "125000", "Rp 125.000", "125.000" → 125000; kosong/bukan angka → null (§5.3) */
-function parseRupiah(s: string): number | null {
-  if (!s) return null;
-  const neg = s.trim().startsWith("-");
-  const digits = s.replace(/[^\d]/g, "");
-  if (!digits) return null;
-  const n = Number(digits);
+  const n = Number(cleaned);
   if (!Number.isFinite(n) || n <= 0) return null;
   return neg ? -n : n;
 }
 
+/** "15%", "25", "-" → 15 / 25 / null (persen diskon). */
+export function parsePercent(s: string): number | null {
+  const t = cell(s);
+  if (!t || t === "-") return null;
+  const m = /(\d+(?:[.,]\d+)?)/.exec(t);
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0 || n >= 100) return null;
+  return n;
+}
+
+/* ---------- Parse tab promo ---------- */
+
+const BULAN_ID: Record<string, number> = {
+  januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
+  juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11
+};
+
 /**
- * Terima "2026-10-23 10:00", "2026/10/23 10:00", "23/10/2026 10:00", juga
- * format tampilan locale Indonesia ("23/10/2026 10.00") → bentuk kanonik
- * "YYYY-MM-DD HH:mm" yang diparse parseWita() sebagai WITA.
+ * Header tier LT PRO seperti "DIS (5-7 NOVEMBER)" → rentang tanggal WITA
+ * pada tahun event. Tidak cocok → null.
  */
-function normTanggal(s: string): string {
-  const t = s.trim();
-  if (!t) return "";
-  const iso = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/.exec(t);
-  const p = (n: number) => String(n).padStart(2, "0");
-  if (iso) {
-    return `${iso[1]}-${p(+iso[2])}-${p(+iso[3])} ${p(+(iso[4] ?? 0))}:${p(+(iso[5] ?? 0))}`;
+function parseTierHeader(header: string): { startMs: number; endMs: number } | null {
+  const m = /(\d{1,2})(?:\s*[-–]\s*(\d{1,2}))?\s+([A-Za-z]+)/.exec(header);
+  if (!m) return null;
+  const month = BULAN_ID[m[3].toLowerCase()];
+  if (month === undefined) return null;
+  const year = new Date(EVENT_START_MS + 8 * 3600 * 1000).getUTCFullYear();
+  const WITA_MS = 8 * 3600 * 1000;
+  const dayA = +m[1];
+  const dayB = m[2] ? +m[2] : dayA;
+  const startMs = Date.UTC(year, month, dayA) - WITA_MS;
+  const endMs = Date.UTC(year, month, dayB + 1) - WITA_MS - 1;
+  return { startMs, endMs };
+}
+
+/**
+ * Parse satu tab promo. Baris dipakai jika kolom A berisi angka ≥6 digit
+ * (barcode). Baris master (N–Q) yang menerus di kolom A kosong otomatis
+ * terlewati. Struktur kolom tetap dibaca per posisi (A..H) sesuai layout
+ * spreadsheet, bukan per nama header — karena tiap tab beda label.
+ */
+function parsePromoTab(grid: string[][], tab: PromoTab): PromoRow[] {
+  const out: PromoRow[] = [];
+  for (const raw of grid) {
+    const barcode = cell(raw[0]);
+    if (!/^\d{6,}$/.test(barcode)) continue;
+
+    const nama = cell(raw[1]);
+    const harga_jual = parseRupiahID(raw[2]);
+    if (!nama || harga_jual === null) {
+      console.warn(`[sheets] baris dilewati (${tab}, barcode=${barcode}): nama/harga jual kosong`);
+      continue;
+    }
+
+    const pareto = tab === "lt-pro" ? cell(raw[6]).toUpperCase() : cell(raw[7]).toUpperCase();
+
+    if (tab === "lt-pro") {
+      // LT PRO (8 kolom): D=DIS tier-1, E=H. DIS tier-1, F=DIS tier-2 (8 Nov),
+      // G=H. DIS tier-2, H=PARETO. Header tier ada di baris pertama grid (D dan F).
+      const headD = grid[0]?.[3] ?? "";
+      const headF = grid[0]?.[5] ?? "";
+      const tierA = parseTierHeader(headD) ?? { startMs: Number.NEGATIVE_INFINITY, endMs: Number.POSITIVE_INFINITY };
+      const tierB = parseTierHeader(headF);
+      const discA = parsePercent(raw[3]);
+      const discB = parsePercent(raw[5]);
+      if (discA === null) {
+        console.warn(`[sheets] baris dilewati (lt-pro, barcode=${barcode}): disc tier 1 kosong`);
+        continue;
+      }
+      out.push({
+        barcode,
+        nama,
+        tab,
+        pareto,
+        harga_jual,
+        disc_reguler: discA,
+        disc_flash: null,
+        tier2: tierB && discB !== null ? { window: tierB, disc: discB } : undefined
+      });
+      continue;
+    }
+
+    // Layout menurut spreadsheet asli:
+    //   SKU PROMO (8 kolom): D=DISC REGULER, E=H. DISC REGULER, F=DISC FLASH, G=H. DISC FLASH, H=PARETO
+    //   ONLY DISC REGULER (6 kolom): D=DISC, E=H. DISC, F=PARETO
+    //   ONLY FLASH SALE  (6 kolom): D=DISC FLASH, E=H. DISC FLASH, F=PARETO
+    let dR: number | null = null;
+    let hR: number | undefined;
+    let dF: number | null = null;
+    let hF: number | undefined;
+    if (tab === "promo") {
+      dR = parsePercent(raw[3]);
+      hR = parseRupiahID(raw[4]) ?? (dR !== null ? hargaDiskon(harga_jual, dR) ?? undefined : undefined);
+      dF = parsePercent(raw[5]);
+      hF = parseRupiahID(raw[6]) ?? (dF !== null ? hargaDiskon(harga_jual, dF) ?? undefined : undefined);
+    } else if (tab === "only-reguler") {
+      dR = parsePercent(raw[3]);
+      hR = parseRupiahID(raw[4]) ?? (dR !== null ? hargaDiskon(harga_jual, dR) ?? undefined : undefined);
+    } else {
+      // only-flash
+      dF = parsePercent(raw[3]);
+      hF = parseRupiahID(raw[4]) ?? (dF !== null ? hargaDiskon(harga_jual, dF) ?? undefined : undefined);
+    }
+
+    if (hR === undefined && hF === undefined) {
+      console.warn(`[sheets] baris dilewati (${tab}, barcode=${barcode}): tidak ada diskon valid`);
+      continue;
+    }
+
+    out.push({
+      barcode,
+      nama,
+      tab,
+      pareto,
+      harga_jual,
+      disc_reguler: hR !== undefined ? (dR ?? persenDari(harga_jual, hR)) : null,
+      harga_reguler_diskon: hR,
+      disc_flash: hF !== undefined ? (dF ?? persenDari(harga_jual, hF)) : null,
+      harga_flash_diskon: hF
+    });
   }
-  const dmy = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:[ T](\d{1,2})[.:](\d{2}))?/.exec(t);
-  if (dmy) {
-    return `${dmy[3]}-${p(+dmy[2])}-${p(+dmy[1])} ${p(+(dmy[4] ?? 0))}:${p(+(dmy[5] ?? 0))}`;
+  return out;
+}
+
+/** Harga diskon dari persen, dibulatkan ke rupiah penuh. */
+function hargaDiskon(harga: number, pct: number): number | null {
+  const n = Math.round(harga * (1 - pct / 100));
+  return n > 0 ? n : null;
+}
+
+/** Persen efektif dari pasangan harga (untuk tampilan chip hemat). */
+function persenDari(harga: number, diskon: number): number {
+  return Math.max(1, Math.round(((harga - diskon) / harga) * 100));
+}
+
+/* ---------- Parse master POS ---------- */
+
+/**
+ * Master POS tersisip: kolom N=BarcodeAktif, O=Nama, P=HJual, Q=Pareto.
+ * H. jual berformat "Rp 29.900,00".
+ */
+function parseMasterTab(grid: string[][]): MasterRow[] {
+  const out: MasterRow[] = [];
+  for (const raw of grid) {
+    const barcode = cell(raw[0]); // kolom N → index 0 dari range N:Q
+    if (!/^\d{6,}$/.test(barcode)) continue;
+    const nama = cell(raw[1]);
+    const harga_jual = parseRupiahID(raw[2]);
+    if (!nama || harga_jual === null) continue;
+    out.push({ barcode, nama, harga_jual, pareto: cell(raw[3]).toUpperCase() });
   }
-  return ""; // Opsi B: tanpa periode → flash dianggap aktif (lihat resolveFlash)
+  return out;
 }
 
 /* ---------- util base64url ---------- */

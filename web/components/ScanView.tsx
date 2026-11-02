@@ -6,6 +6,9 @@ import { useBarcodeScanner } from "./useBarcodeScanner";
 
 export type ViewName = "scan" | "search" | "history";
 
+/** Sudah pernah menyalakan kamera di sesi halaman ini (reset saat reload) */
+let camStartedOnce = false;
+
 interface ScanViewProps {
   active: boolean; // view sedang tampil
   syncHHMM: string; // "Data diperbarui HH:MM"
@@ -35,17 +38,25 @@ export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpe
     setTimeout(() => setFoundFlash(false), 900);
   }, []);
 
-  const { videoRef, status, torchOn, start, toggleTorch, simulate } = useBarcodeScanner(onCodeVisual);
+  const { videoRef, status, torchOn, start, stop, toggleTorch, simulate } = useBarcodeScanner(onCodeVisual);
 
+  // tap-to-start: kamera hanya menyala setelah tombol "Mulai Scan" ditekan
+  const handleStart = useCallback(() => {
+    camStartedOnce = true;
+    void start();
+  }, [start]);
+
+  // saat kembali ke view scan setelah kamera pernah aktif di sesi ini, hidupkan lagi
   useEffect(() => {
-    if (active && !startedRef.current) {
+    if (active && camStartedOnce && !startedRef.current) {
       startedRef.current = true;
       void start();
     }
     if (!active) {
       startedRef.current = false;
+      if (camStartedOnce) stop(); // matikan kamera saat pindah view, hemat baterai
     }
-  }, [active, start]);
+  }, [active, start, stop]);
 
   useEffect(() => {
     if (status === "running") setStatusText("Kamera siap — arahkan ke barcode");
@@ -73,9 +84,10 @@ export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpe
   }, [active, demoBuffer, simulate]);
 
   const camDown = status === "unsupported" || status === "denied" || status === "error";
+  const camIdle = !camStartedOnce && status === "idle";
 
   return (
-    <section aria-label="Pindai barcode" className="relative flex min-h-dvh flex-col overflow-hidden text-white lg:flex-row lg:items-stretch"
+    <section aria-label="Pindai barcode" className="scan-scope relative flex min-h-dvh flex-col overflow-hidden text-white lg:flex-row lg:items-stretch"
       style={{ background: "radial-gradient(140% 90% at 50% 0%, #232028 0%, var(--color-night) 58%)" }}
     >
       {/* kamera */}
@@ -104,18 +116,38 @@ export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpe
             </span>
           </button>
         )}
+        {/* gate tap-to-start: kamera belum pernah dinyalakan di sesi ini */}
+        {camIdle && (
+          <button
+            type="button"
+            onClick={handleStart}
+            className="absolute inset-0 grid place-items-center content-center gap-3.5 px-10 pb-[10dvh] text-center"
+            style={{
+              background:
+                "radial-gradient(120% 70% at 50% 30%, rgba(194,71,126,0.10) 0%, transparent 55%), linear-gradient(180deg, rgba(16,16,20,0) 40%, rgba(10,10,14,0.85) 100%)"
+            }}
+          >
+            <span className="mx-auto grid h-[84px] w-[84px] place-items-center rounded-[26px] border border-white/[0.16] bg-white/[0.06] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] [&_svg]:h-[38px] [&_svg]:w-[38px]">
+              {Icon.scan}
+            </span>
+            <span className="text-[16.5px] font-semibold">Mulai Scan</span>
+            <span className="mx-auto max-w-[34ch] text-[13.5px] text-white/60">
+              Tap untuk menyalakan kamera. Kamera tidak aktif sampai Anda menekan tombol ini.
+            </span>
+          </button>
+        )}
         {/* viewfinder */}
-        {!camDown && (
-          <div className={`absolute left-1/2 top-[42%] z-[3] h-[min(78vw,300px)] w-[min(78vw,300px)] -translate-x-1/2 -translate-y-1/2 max-lg:hidden lg:left-[27%] lg:top-1/2 lg:h-[min(30vw,320px)] lg:w-[min(30vw,320px)] ${foundFlash ? "vf-found" : ""}`}>
-            <span className="absolute left-0 top-0 h-[34px] w-[34px] rounded-tl-[18px] border-[3px] border-b-0 border-r-0 border-white/90" />
-            <span className="absolute right-0 top-0 h-[34px] w-[34px] rounded-tr-[18px] border-[3px] border-b-0 border-l-0 border-white/90" />
-            <span className="absolute bottom-0 left-0 h-[34px] w-[34px] rounded-bl-[16px] border-[3px] border-r-0 border-t-0 border-white/90" />
-            <span className="absolute bottom-0 right-0 h-[34px] w-[34px] rounded-br-[16px] border-[3px] border-l-0 border-t-0 border-white/90" />
+        {!camDown && !camIdle && (
+          <div className={`absolute left-1/2 top-[42%] z-[3] h-[min(78vw,300px)] w-[min(78vw,300px)] -translate-x-1/2 -translate-y-1/2 lg:left-[27%] lg:top-1/2 lg:h-[min(30vw,320px)] lg:w-[min(30vw,320px)] ${foundFlash ? "vf-found" : ""}`}>
+            <span className="vf-corner absolute left-0 top-0 h-[34px] w-[34px] rounded-tl-[18px] border-[3px] border-b-0 border-r-0 border-white/90 transition-colors duration-300" />
+            <span className="vf-corner absolute right-0 top-0 h-[34px] w-[34px] rounded-tr-[18px] border-[3px] border-b-0 border-l-0 border-white/90 transition-colors duration-300" />
+            <span className="vf-corner absolute bottom-0 left-0 h-[34px] w-[34px] rounded-bl-[16px] border-[3px] border-r-0 border-t-0 border-white/90 transition-colors duration-300" />
+            <span className="vf-corner absolute bottom-0 right-0 h-[34px] w-[34px] rounded-br-[16px] border-[3px] border-l-0 border-t-0 border-white/90 transition-colors duration-300" />
             <div className="vf-beam" />
           </div>
         )}
         {/* status pill */}
-        {!camDown && statusText && (
+        {!camDown && !camIdle && statusText && (
           <div className="absolute bottom-[calc(88px+26px)] left-1/2 z-[4] inline-flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-white/[0.09] bg-[rgba(12,12,16,0.66)] px-4 py-2 text-[13.5px] font-medium text-white/90 backdrop-blur-md lg:bottom-auto lg:top-[calc(50%-min(15vw,160px)+26px)]">
             <span className="anim-breathe h-2 w-2 shrink-0 rounded-full bg-[#5ED5A8]" />
             {statusText}
@@ -156,7 +188,7 @@ export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpe
       </header>
 
       {/* hint tengah (mobile) */}
-      {!camDown && (
+      {!camDown && !camIdle && (
         <p className="relative z-[4] mb-[calc(88px+12px)] mt-auto px-6 text-center text-[13.5px] leading-[1.6] text-white/60 max-lg:block lg:absolute lg:left-[27%] lg:top-1/2 lg:m-0 lg:w-[min(30vw,320px)] lg:-translate-x-1/2 lg:-translate-y-[calc(50%+min(15vw,160px)+52px)]">
           Arahkan kamera ke barcode produk. EAN-13, EAN-8, UPC-A, Code 128, dan QR didukung.
         </p>
@@ -200,4 +232,14 @@ export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpe
   );
 }
 
-const DEMO_CODES = ["8991004102109", "8991004102406", "8991004103005", "8991004104804", "9999999999999"];
+// barcode demo (mode tanpa env): 2 SKU PROMO, only-reguler, only-flash, LT PRO,
+// non-promo (master), dan 1 barcode yang memang tidak terdaftar
+const DEMO_CODES = [
+  "8993137691710",
+  "8993137709576",
+  "8998824552398",
+  "8994460551528",
+  "8998113330232",
+  "4902508798655",
+  "9999999999999"
+];

@@ -65,9 +65,34 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ---------- Fokus (a11y) ---------- */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* elemen yang indikator fokusnya digambar parent (focus-within) — jangan dobel ring */
+:where(input, textarea, select, [contenteditable]):focus-visible {
+  outline: none;
+}
+/* di atas latar gelap scanner — rose gelap kurang kontras */
+.scan-scope :focus-visible {
+  outline-color: #ff8fbe;
+}
+
+/* ---------- Status offline (pill scanner) ---------- */
+.is-stale {
+  border-color: rgba(232, 180, 90, 0.55) !important;
+  background: rgba(58, 42, 16, 0.6) !important;
+}
+
 /* ---------- Keyframes ---------- */
 @keyframes rise {
   from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
 }
 @keyframes floaty {
@@ -106,6 +131,7 @@ button {
 }
 
 .anim-rise { animation: rise 0.55s var(--ease-out-soft) both; }
+.anim-view-in { animation: view-in 0.38s var(--ease-out-soft) both; }
 .anim-breathe { animation: breathe 1.6s var(--ease-out-soft) infinite; }
 .anim-shake { animation: shake 0.4s var(--ease-out-soft); }
 .anim-toast-in { animation: toast-in 0.34s var(--ease-out-soft); }
@@ -142,6 +168,9 @@ button {
 .vf-found .vf-beam::after {
   animation: none;
   opacity: 0;
+}
+.vf-found .vf-corner {
+  border-color: #5ed5a8;
 }
 
 /* ---------- Skeleton shimmer ---------- */

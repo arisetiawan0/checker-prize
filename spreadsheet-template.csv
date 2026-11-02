@@ -1,0 +1,6 @@
+sku,barcode,nama,harga_reguler,harga_flash,flash_mulai,flash_selesai,kategori
+BK-0001,8991234567890,Serum Vit C 30ml,125000,99000,2026-10-23 10:00,2026-10-23 14:00,Skincare
+BK-0002,8991234567891,Toner Niacinamide 100ml,89000,,,Skincare
+BK-0003,8991234567892,Sunscreen SPF 50 PA++++ 50ml,109000,89000,2026-11-05 08:00,2026-11-11 22:00,Skincare
+BK-0004,8991234567893,Lip Cream Matte 4g,65000,,,Makeup
+BK-0005,8991234567894,Cushion Foundation Refill,149000,119000,2026-11-05 08:00,2026-11-11 22:00,Makeup
