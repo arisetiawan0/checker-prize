@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Icon, initialsOf, toneOf } from "./icons";
 import { fetchSearch, fmtRupiah } from "@/lib/client-api";
 import type { SearchResultItem } from "@/lib/types";
@@ -22,10 +22,13 @@ interface SearchState {
 /** Pencarian manual: barcode, SKU, atau nama (PRD F2) */
 export function SearchView({ active, seed, onBack, onPick }: SearchViewProps) {
   const [state, setState] = useReducerInit();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (active) {
       setState({ type: "reset", q: seed });
+      // fokuskan kolom setiap view ini dibuka (autoFocus hanya jalan saat mount)
+      requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, seed]);
@@ -87,6 +90,7 @@ export function SearchView({ active, seed, onBack, onPick }: SearchViewProps) {
         <div className="flex h-14 items-center gap-2.5 rounded-[18px] border-[1.5px] border-line-strong bg-surface pl-[18px] pr-2 shadow-card transition focus-within:border-brand focus-within:shadow-[0_0_0_4px_var(--color-brand-bg),var(--shadow-card)]">
           <span className="shrink-0 text-ink-3 [&_svg]:h-5 [&_svg]:w-5">{Icon.search}</span>
           <input
+            ref={inputRef}
             type="search"
             inputMode="search"
             autoComplete="off"
@@ -95,7 +99,7 @@ export function SearchView({ active, seed, onBack, onPick }: SearchViewProps) {
             className="h-full min-w-0 flex-1 border-0 bg-transparent text-base outline-none placeholder:text-ink-3"
             value={state.q}
             onChange={(e) => setState({ type: "q", q: e.target.value })}
-            autoFocus
+            onFocus={(e) => e.currentTarget.select()}
           />
           {q && (
             <button
