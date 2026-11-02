@@ -205,6 +205,8 @@ export interface PriceResolve {
   promo_price: number | null;
   /** khusus LT PRO: tier lain yang belum berlaku (untuk tampilan) */
   alt_tier: { disc: number; price: number; startMs: number; endMs: number } | null;
+  /** khusus LT PRO: rentang tier-1 (dari awal event s.d. sebelum tier-2) */
+  tier1_window: { startMs: number; endMs: number } | null;
   flash_sale: {
     price: number;
     discount_percent: number;
@@ -231,12 +233,11 @@ export function resolvePrice(
   if (!promo && !master) return null;
 
   const harga_jual = promo?.harga_jual ?? master!.harga_jual;
-  // khusus LT PRO: tier diskon yang TIDAK sedang berlaku (untuk info tampilan)
+  // khusus LT PRO: jadwal lengkap semua tier tanggal (utk blok "Jadwal harga promo")
   let alt_tier: PriceResolve["alt_tier"] = null;
   if (promo?.tab === "lt-pro" && promo.tier2) {
     const active = nowMs >= promo.tier2.window.startMs && nowMs <= promo.tier2.window.endMs;
-    const tier = active ? promo.tier2 : null;
-    alt_tier = tier
+    alt_tier = active
       ? null
       : {
           disc: promo.tier2.disc,
@@ -245,6 +246,12 @@ export function resolvePrice(
           endMs: promo.tier2.window.endMs
         };
   }
+  // tier-1 = kolom DIS (5-7 NOVEMBER): rentangnya diambil dari header tier2 terbalik
+  let tier1_window: { startMs: number; endMs: number } | null = null;
+  if (promo?.tab === "lt-pro" && promo.tier2) {
+    // tier1 berlaku dari awal event sampai sehari sebelum tier2 mulai
+    tier1_window = { startMs: EVENT_START_MS, endMs: promo.tier2.window.startMs - 1 };
+  }
   const base: PriceResolve = {
     kind: "normal",
     price: harga_jual,
@@ -252,6 +259,7 @@ export function resolvePrice(
     harga_jual,
     promo_price: null,
     alt_tier,
+    tier1_window,
     flash_sale: null,
     flash_upcoming: false,
     flash_upcoming_price: null,
@@ -350,10 +358,32 @@ export function buildPricePayload(
     flash_upcoming_start: r.flash_upcoming_start,
     /** harga flash terjadwal di spreadsheet (tampil walau sesi belum aktif) */
     flash_scheduled_price: promo?.harga_flash_diskon ?? null,
-    /** khusus LT PRO: tier diskon tanggal lain (belum/sudah berlaku) */
-    alt_tier: r.alt_tier
-      ? { disc: r.alt_tier.disc, price: r.alt_tier.price, start: isoWita(r.alt_tier.startMs), end: isoWita(r.alt_tier.endMs) }
-      : null,
+    /**
+     * khusus LT PRO: jadwal lengkap harga promo per tier tanggal (berurutan).
+     * `active` menandai tier yang sedang berlaku pada nowMs.
+     */
+    price_schedule: (() => {
+      if (promo?.tab !== "lt-pro" || !promo.tier2) return [];
+      const jual = promo.harga_jual;
+      const list: Array<{ disc: number; price: number; start: string; end: string; active: boolean }> = [];
+      if (r.tier1_window) {
+        list.push({
+          disc: promo.disc_reguler ?? 0,
+          price: Math.round(jual * (1 - (promo.disc_reguler ?? 0) / 100)),
+          start: isoWita(r.tier1_window.startMs),
+          end: isoWita(r.tier1_window.endMs),
+          active: nowMs >= r.tier1_window.startMs && nowMs <= r.tier1_window.endMs
+        });
+      }
+      list.push({
+        disc: promo.tier2.disc,
+        price: Math.round(jual * (1 - promo.tier2.disc / 100)),
+        start: isoWita(promo.tier2.window.startMs),
+        end: isoWita(promo.tier2.window.endMs),
+        active: nowMs >= promo.tier2.window.startMs && nowMs <= promo.tier2.window.endMs
+      });
+      return list;
+    })(),
     effective_price: r.price,
     event: {
       status: r.promo_status,

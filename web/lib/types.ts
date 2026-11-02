@@ -45,8 +45,8 @@ export interface PriceResponse {
   flash_upcoming_start: string | null;
   /** harga flash terjadwal di spreadsheet (bisa beda dgn flash_upcoming saat event belum mulai) */
   flash_scheduled_price: number | null;
-  /** khusus LT PRO: tier diskon tanggal lain selain yang sedang berlaku */
-  alt_tier: { disc: number; price: number; start: string; end: string } | null;
+  /** khusus LT PRO: jadwal harga promo per tier tanggal, berurutan; `active` = sedang berlaku */
+  price_schedule: Array<{ disc: number; price: number; start: string; end: string; active: boolean }>;
   /** harga efektif sekarang */
   effective_price: number;
   event: EventInfo;

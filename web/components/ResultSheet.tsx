@@ -132,7 +132,7 @@ export function ResultSheet({
       flash_upcoming_price,
       flash_upcoming_start,
       flash_scheduled_price,
-      alt_tier,
+      price_schedule,
       event
     } = result as PriceResponse;
 
@@ -198,13 +198,7 @@ export function ResultSheet({
               dd={flash_upcoming ? `Mulai ${fmtWitaDateID(flash_upcoming_start)} WITA` : "–"}
             />
           )}
-          {alt_tier && (
-            <Row
-              dt={`Diskon ${fmtWitaDateID(alt_tier.start)}`}
-              dd={`${alt_tier.disc}% (${fmtRupiah(alt_tier.price)})`}
-              sub={`${fmtWitaDateID(alt_tier.start)} – ${fmtWitaDateID(alt_tier.end)} WITA`}
-            />
-          )}
+          {price_schedule.length > 0 && <PriceSchedule schedule={price_schedule} />}
           {product.pareto && <Row dt="Pareto" dd={product.pareto} />}
           <Row
             dt="Harga berlaku sekarang"
@@ -291,6 +285,43 @@ function Row({
           {dd}
         </span>
         {sub && <span className="mt-1 block font-mono text-[11.5px] leading-snug text-ink-3">{sub}</span>}
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * Khusus LT PRO: jadwal lengkap harga promo per tier tanggal dalam SATU blok,
+ * tier aktif ditandai. Dibuat agar staf langsung paham: tanggal beda →
+ * nominal beda, semua tier reguler.
+ */
+function PriceSchedule({
+  schedule
+}: {
+  schedule: Array<{ disc: number; price: number; start: string; end: string; active: boolean }>;
+}) {
+  return (
+    <div className="border-t border-line px-0.5 py-3 text-sm">
+      <dt className="mb-2 font-medium text-ink-2">Jadwal harga promo</dt>
+      <dd className="flex flex-col gap-1.5">
+        {schedule.map((tier, i) => (
+          <div
+            key={i}
+            className={`flex items-center justify-between gap-3 rounded-[10px] px-2.5 py-1.5 ${
+              tier.active ? "bg-ok-bg text-ok" : "bg-surface text-ink-2"
+            }`}
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${tier.active ? "bg-ok" : "bg-line-strong"}`} />
+              {fmtWitaDateID(tier.start)}
+              {fmtWitaDateID(tier.start) !== fmtWitaDateID(tier.end) ? ` – ${fmtWitaDateID(tier.end)}` : ""}
+            </span>
+            <span className="text-right font-mono text-[12.5px] font-semibold">
+              {tier.disc}% · {fmtRupiah(tier.price)}
+              {tier.active && <span className="ml-1.5 font-sans text-[10.5px] font-bold uppercase tracking-wide">· berlangsung</span>}
+            </span>
+          </div>
+        ))}
       </dd>
     </div>
   );
