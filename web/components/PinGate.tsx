@@ -11,18 +11,21 @@ interface PinGateProps {
 /**
  * Gerbang kode akses staff — PRD §7.3.
  * PIN diverifikasi di server via POST /api/auth; cookie httpOnly diberikan
- * saat berhasil. Default PIN "280101" saat STAFF_PIN env tidak di-set.
+ * saat berhasil. PIN di-set lewat env STAFF_PIN (tanpa env: fallback 280101).
+ *
+ * Input utama = 6 kotak terpisah (auto-focus pindah, paste didukung).
  */
 export function PinGate({ onUnlock }: PinGateProps) {
-  const DEMO_PIN = "280101";
-  const [digits, setDigits] = useState("");
+  const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
   const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
   const [busy, setBusy] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const boxRefs = useRef<Array<HTMLInputElement | null>>(Array(6).fill(null));
+
+  const code = digits.join("");
 
   useEffect(() => {
-    inputRef.current?.focus({ preventScroll: true });
+    boxRefs.current[0]?.focus({ preventScroll: true });
   }, []);
 
   const submit = async (val: string) => {
@@ -46,7 +49,8 @@ export function PinGate({ onUnlock }: PinGateProps) {
         setError("Kode akses salah. Coba lagi atau hubungi supervisor.");
         setShake(true);
         setTimeout(() => setShake(false), 450);
-        setDigits("");
+        setDigits(Array(6).fill(""));
+        boxRefs.current[0]?.focus({ preventScroll: true });
         navigator.vibrate?.([60, 40, 60]);
         return;
       }
@@ -60,7 +64,47 @@ export function PinGate({ onUnlock }: PinGateProps) {
     }
   };
 
-  const cells = Array.from({ length: 6 }, (_, i) => digits[i]);
+  const setAt = (i: number, raw: string) => {
+    // dukung paste 6 digit sekaligus & ketik beruntun di satu kotak
+    const clean = raw.replace(/\D/g, "");
+    if (!clean) return;
+    const next = [...digits];
+    for (let k = 0; k < clean.length && i + k < 6; k++) next[i + k] = clean[k];
+    setDigits(next);
+    setError("");
+    const filled = next.join("");
+    const focusAt = Math.min(i + clean.length, 5);
+    boxRefs.current[focusAt]?.focus({ preventScroll: true });
+    if (filled.length === 6 && !next.includes("")) {
+      const el = boxRefs.current[5];
+      el?.blur();
+      setTimeout(() => submit(filled), 140);
+    }
+  };
+
+  const onBoxKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      const next = [...digits];
+      if (next[i]) {
+        next[i] = "";
+        setDigits(next);
+      } else if (i > 0) {
+        next[i - 1] = "";
+        setDigits(next);
+        boxRefs.current[i - 1]?.focus({ preventScroll: true });
+      }
+      return;
+    }
+    if (e.key === "ArrowLeft" && i > 0) {
+      e.preventDefault();
+      boxRefs.current[i - 1]?.focus({ preventScroll: true });
+    }
+    if (e.key === "ArrowRight" && i < 5) {
+      e.preventDefault();
+      boxRefs.current[i + 1]?.focus({ preventScroll: true });
+    }
+  };
 
   return (
     <section className="fixed inset-0 grid place-items-center overflow-hidden px-5 py-6"
@@ -93,42 +137,35 @@ export function PinGate({ onUnlock }: PinGateProps) {
           noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            submit(digits);
+            submit(code);
           }}
         >
-          <div className={`relative ${shake ? "anim-shake" : ""}`}>
-            <div className="mb-1.5 flex justify-center gap-2.5" aria-hidden>
-              {cells.map((d, i) => (
-                <span
+          <div className={`relative ${shake ? "anim-shake" : ""}`} aria-hidden={false}>
+            <div className="mb-1.5 flex justify-center gap-2.5">
+              {digits.map((d, i) => (
+                <input
                   key={i}
-                  className={`grid h-[58px] w-[46px] place-items-center rounded-[14px] border-[1.5px] font-mono text-[22px] font-semibold transition-colors duration-150 ${
+                  ref={(el) => {
+                    boxRefs.current[i] = el;
+                  }}
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete={i === 0 ? "one-time-code" : "off"}
+                  aria-label={`Digit ${i + 1} kode akses`}
+                  maxLength={6}
+                  disabled={busy}
+                  className={`h-[58px] w-[46px] rounded-[14px] border-[1.5px] text-center font-mono text-[22px] font-semibold outline-none transition-colors duration-150 ${
                     d
                       ? "border-ink bg-white"
-                      : i === digits.length
-                        ? "border-brand bg-white shadow-[0_0_0_3.5px_var(--color-brand-bg)]"
-                        : "border-line-strong bg-elev"
+                      : "border-line-strong bg-elev focus:border-brand focus:bg-white focus:shadow-[0_0_0_3.5px_var(--color-brand-bg)]"
                   }`}
-                >
-                  {d ? "•" : ""}
-                </span>
+                  value={d}
+                  onChange={(e) => setAt(i, e.target.value)}
+                  onKeyDown={(e) => onBoxKey(i, e)}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
               ))}
             </div>
-            <input
-              ref={inputRef}
-              type="password"
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={6}
-              aria-label="Kode akses 6 digit"
-              className="absolute bottom-2.5 left-10 z-[1] h-px w-px border-0 p-0 opacity-[0.001]"
-              value={digits}
-              onChange={(e) => {
-                const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-                setDigits(v);
-                setError("");
-                if (v.length === 6 && !busy) setTimeout(() => submit(v), 140);
-              }}
-            />
           </div>
           <p role="alert" aria-live="polite" className={`mb-3.5 mt-0.5 min-h-[21px] text-[13.5px] ${error ? "font-medium text-danger" : "text-ink-2"}`}>
             {error}
@@ -140,20 +177,6 @@ export function PinGate({ onUnlock }: PinGateProps) {
           >
             {busy ? "Memeriksa…" : "Buka Aplikasi"}
           </button>
-          <p className="mt-4 text-[13px] text-ink-3">
-            Demo prototype: gunakan kode{" "}
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setDigits(DEMO_PIN);
-                setTimeout(() => submit(DEMO_PIN), 160);
-              }}
-              className="rounded-full border border-brand-line bg-brand-bg px-2.5 py-0.5 align-middle font-mono text-[13px] font-semibold tracking-[0.08em] text-brand-ink transition hover:bg-brand-line"
-            >
-              280101
-            </button>
-          </p>
         </form>
       </div>
       <p className="absolute bottom-[max(18px,calc(env(safe-area-inset-bottom,0px)+12px))] left-0 right-0 text-center text-[12.5px] text-ink-3">
