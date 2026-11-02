@@ -305,7 +305,8 @@ function parsePromoTab(grid: string[][], tab: PromoTab): PromoRow[] {
       continue;
     }
 
-    const pareto = tab === "lt-pro" ? cell(raw[6]).toUpperCase() : cell(raw[7]).toUpperCase();
+    // Pareto selalu kolom H (index 7) di tab 8 kolom; tab 6 kolom di F (index 5)
+    const pareto = (tab === "only-reguler" || tab === "only-flash" ? cell(raw[5]) : cell(raw[7])).toUpperCase();
 
     if (tab === "lt-pro") {
       // LT PRO (8 kolom): D=DIS tier-1, E=H. DIS tier-1, F=DIS tier-2 (8 Nov),

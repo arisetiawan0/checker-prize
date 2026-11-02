@@ -132,6 +132,7 @@ export function ResultSheet({
       flash_upcoming_price,
       flash_upcoming_start,
       flash_scheduled_price,
+      alt_tier,
       event
     } = result as PriceResponse;
 
@@ -194,6 +195,12 @@ export function ResultSheet({
             <Row
               dt="Flash sale"
               dd={flash_upcoming ? `Mulai ${fmtWitaDateID(flash_upcoming_start)} WITA` : "–"}
+            />
+          )}
+          {alt_tier && (
+            <Row
+              dt="Diskon tanggal lain"
+              dd={`${alt_tier.disc}% (${fmtRupiah(alt_tier.price)}) · ${fmtWitaDateID(alt_tier.start)} – ${fmtWitaDateID(alt_tier.end)} WITA`}
             />
           )}
           {product.pareto && <Row dt="Pareto" dd={product.pareto} />}
