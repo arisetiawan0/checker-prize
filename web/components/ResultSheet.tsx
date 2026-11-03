@@ -138,6 +138,8 @@ export function ResultSheet({
 
     // harga flash di spreadsheet — tampil di baris detail walau sesi belum aktif
     const flashScheduled = flash_scheduled_price ?? flash_upcoming_price ?? null;
+    // persen disc reguler terjadwal (tampil di hero saat event belum mulai)
+    const scheduledDiscPct = promo_price !== null ? pctOff(regular_price, promo_price) : null;
 
     return (
       <>
@@ -152,7 +154,12 @@ export function ResultSheet({
         ) : non_promo ? (
           <PlainHero label="Harga Normal · Non-Promo" price={effective_price} />
         ) : promo_status === "before" ? (
-          <PlainHero label="Harga Normal" price={effective_price} banner={eventBanner(event, "before")} />
+          <PlainHero
+            label="Harga Normal"
+            price={effective_price}
+            banner={eventBanner(event, "before")}
+            chipPercent={scheduledDiscPct ?? undefined}
+          />
         ) : promo_status === "after" ? (
           <PlainHero label="Harga Normal" price={effective_price} banner={eventBanner(event, "after")} />
         ) : promo_price !== null && promo_price < effective_price ? (
@@ -178,11 +185,21 @@ export function ResultSheet({
         <dl>
           <Row dt="Harga jual" dd={fmtRupiah(regular_price)} ddClass="text-ink-2" />
           {promo_price !== null && !non_promo && (
-            <Row dt="Harga disc reguler" dd={fmtRupiah(promo_price)} ddClass="text-brand-ink" />
+            <Row
+              dt="Harga disc reguler"
+              dd={fmtRupiah(promo_price)}
+              ddClass="text-brand-ink"
+              badge={pctOff(regular_price, promo_price)}
+            />
           )}
           {flash_sale ? (
             <>
-              <Row dt="Harga flash sale" dd={fmtRupiah(flash_sale.price)} ddClass="text-brand-ink" />
+              <Row
+                dt="Harga flash sale"
+                dd={fmtRupiah(flash_sale.price)}
+                ddClass="text-brand-ink"
+                badge={pctOff(regular_price, flash_sale.price)}
+              />
               <Row dt="Berlaku sampai" dd={`${fmtWitaDateID(flash_sale.ends_at)} WITA`} />
             </>
           ) : flashScheduled !== null ? (
@@ -191,6 +208,7 @@ export function ResultSheet({
               dd={fmtRupiah(flashScheduled)}
               sub={`${flashSessionLabel(event)} WITA`}
               ddClass="text-brand-ink"
+              badge={pctOff(regular_price, flashScheduled)}
             />
           ) : (
             <Row
@@ -205,6 +223,8 @@ export function ResultSheet({
             dd={fmtRupiah(effective_price)}
             ddClass="inline-flex items-center gap-1.5 text-[14.5px] font-bold text-ok [&_svg]:h-4 [&_svg]:w-4"
             ddIcon={Icon.check}
+            badge={effective_price < regular_price ? pctOff(regular_price, effective_price) : undefined}
+            badgeClass="border-ok-line bg-ok-bg text-ok"
           />
         </dl>
 
@@ -262,12 +282,37 @@ export function ResultSheet({
   );
 }
 
+/** Persen hemat vs harga jual — dibulatkan, min 1% (selaras server §persen). */
+function pctOff(regular: number, price: number): number {
+  if (regular <= 0 || price >= regular) return 0;
+  return Math.max(1, Math.round(((regular - price) / regular) * 100));
+}
+
+/** Pill kecil "−15%" — dipakai di baris detail & hero. */
+function PercentPill({
+  percent,
+  className = "border-brand-line bg-brand-bg text-brand-ink"
+}: {
+  percent: number;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-[1.5px] font-mono text-[10.5px] font-bold leading-none tracking-[0.01em] ${className}`}
+    >
+      −{percent}%
+    </span>
+  );
+}
+
 function Row({
   dt,
   dd,
   sub,
   ddClass = "",
-  ddIcon
+  ddIcon,
+  badge,
+  badgeClass
 }: {
   dt: string;
   dd: string;
@@ -275,14 +320,18 @@ function Row({
   sub?: string;
   ddClass?: string;
   ddIcon?: React.ReactNode;
+  /** persen diskon → pill "−N%" di samping nilai */
+  badge?: number;
+  badgeClass?: string;
 }) {
   return (
     <div className="flex items-start justify-between gap-3.5 border-t border-line px-0.5 py-3 text-sm">
       <dt className="shrink-0 pt-0.5 font-medium text-ink-2">{dt}</dt>
       <dd className="text-right">
-        <span className={`font-mono text-[13px] font-semibold [overflow-wrap:anywhere] ${ddClass}`}>
+        <span className={`inline-flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1 font-mono text-[13px] font-semibold [overflow-wrap:anywhere] ${ddClass}`}>
           {ddIcon}
           {dd}
+          {badge !== undefined && badge > 0 && <PercentPill percent={badge} className={badgeClass} />}
         </span>
         {sub && <span className="mt-1 block font-mono text-[11.5px] leading-snug text-ink-3">{sub}</span>}
       </dd>
@@ -307,18 +356,28 @@ function PriceSchedule({
         {schedule.map((tier, i) => (
           <div
             key={i}
-            className={`flex items-center justify-between gap-3 rounded-[10px] px-2.5 py-1.5 ${
-              tier.active ? "bg-ok-bg text-ok" : "bg-surface text-ink-2"
+            className={`flex items-center justify-between gap-3 rounded-[12px] border px-2.5 py-2 ${
+              tier.active
+                ? "border-ok-line bg-ok-bg shadow-[inset_2px_0_0_var(--color-ok)]"
+                : "border-line bg-surface text-ink-2"
             }`}
           >
-            <span className="flex items-center gap-2 font-medium">
+            <span className="flex min-w-0 items-center gap-2 font-medium">
               <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${tier.active ? "bg-ok" : "bg-line-strong"}`} />
-              {fmtWitaDateID(tier.start)}
-              {fmtWitaDateID(tier.start) !== fmtWitaDateID(tier.end) ? ` – ${fmtWitaDateID(tier.end)}` : ""}
+              <span className="truncate">
+                {fmtWitaDateID(tier.start)}
+                {fmtWitaDateID(tier.start) !== fmtWitaDateID(tier.end) ? ` – ${fmtWitaDateID(tier.end)}` : ""}
+              </span>
             </span>
-            <span className="text-right font-mono text-[12.5px] font-semibold">
-              {tier.disc}% · {fmtRupiah(tier.price)}
-              {tier.active && <span className="ml-1.5 font-sans text-[10.5px] font-bold uppercase tracking-wide">· berlangsung</span>}
+            <span className="flex shrink-0 items-center gap-1.5 text-right font-mono text-[12.5px] font-semibold">
+              <PercentPill
+                percent={tier.disc}
+                className={tier.active ? "border-ok-line bg-surface text-ok" : "border-line-strong bg-elev text-ink-2"}
+              />
+              {fmtRupiah(tier.price)}
+              {tier.active && (
+                <span className="ml-0.5 font-sans text-[10.5px] font-bold uppercase tracking-wide text-ok">· berlangsung</span>
+              )}
             </span>
           </div>
         ))}
@@ -347,7 +406,18 @@ function flashSessionLabel(event: PriceResponse["event"]): string {
   return `${start} – ${end} WITA`;
 }
 
-function PlainHero({ label, price, banner }: { label: string; price: number; banner?: string }) {
+function PlainHero({
+  label,
+  price,
+  banner,
+  chipPercent
+}: {
+  label: string;
+  price: number;
+  banner?: string;
+  /** persen disc reguler terjadwal → chip "Hemat N%" di hero */
+  chipPercent?: number;
+}) {
   return (
     <div className="relative mx-0 mb-4 mt-1 overflow-hidden rounded-3xl px-[22px] pb-[22px] pt-6 text-white"
       style={{
@@ -355,11 +425,26 @@ function PlainHero({ label, price, banner }: { label: string; price: number; ban
           "radial-gradient(130% 100% at 85% 0%, rgba(255,122,183,0.30) 0%, transparent 55%), linear-gradient(160deg, #2E2A35 0%, var(--color-night) 70%)"
       }}
     >
+      <span aria-hidden className="pointer-events-none absolute -right-4 -top-5 opacity-[0.09] [&_svg]:h-[110px] [&_svg]:w-[110px]">
+        {Icon.tag}
+      </span>
       <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/60">{label}</span>
-      <div className="mt-2.5 font-mono text-[40px] font-bold leading-none tracking-[-0.02em]">{fmtRupiah(price)}</div>
-      {banner && (
-        <div className="mt-2 flex flex-wrap items-center gap-2.5 text-[13.5px] text-white/70">
-          <span className="inline-flex items-center gap-1.5 [&_svg]:h-[14px] [&_svg]:w-[14px]">{Icon.clock}{banner}</span>
+      <div className="mt-2.5 font-mono text-[40px] font-bold leading-none tracking-[-0.02em] [font-variant-numeric:tabular-nums]">
+        {fmtRupiah(price)}
+      </div>
+      {(banner || chipPercent) && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          {chipPercent !== undefined && (
+            <span className="rounded-full border border-[#FFD166]/40 bg-[#FFD166]/15 px-2.5 py-1 font-mono text-[12.5px] font-bold text-[#FFD166]">
+              Hemat {chipPercent}%
+            </span>
+          )}
+          {banner && (
+            <span className="inline-flex items-center gap-1.5 text-[13.5px] text-white/70 [&_svg]:h-[14px] [&_svg]:w-[14px]">
+              {Icon.clock}
+              {banner}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -375,17 +460,27 @@ function DiscHero({ regular, disc, percent }: { regular: number; disc: number; p
           "radial-gradient(130% 100% at 85% 0%, rgba(122,162,255,0.32) 0%, transparent 55%), linear-gradient(160deg, #223047 0%, #1B2436 55%, #141A28 100%)"
       }}
     >
+      <span aria-hidden className="pointer-events-none absolute -right-4 -top-5 opacity-[0.09] [&_svg]:h-[110px] [&_svg]:w-[110px]">
+        {Icon.tag}
+      </span>
       <span className="inline-flex items-center gap-[7px] text-[11px] font-bold uppercase tracking-[0.22em] text-[#AFC8FF]">
         <span className="inline-flex text-[#FFD166] [&_svg]:h-[15px] [&_svg]:w-[15px]">{Icon.tag}</span>
         Harga Promo
       </span>
-      <div className="mt-2.5 font-mono text-[40px] font-bold leading-none tracking-[-0.02em]">{fmtRupiah(disc)}</div>
-      <div className="mt-2 flex flex-wrap items-center gap-2.5 text-[13.5px] text-white/70">
+      <div className="mt-2.5 flex flex-wrap items-end gap-x-3 gap-y-2">
+        <span className="font-mono text-[40px] font-bold leading-none tracking-[-0.02em] [font-variant-numeric:tabular-nums]">
+          {fmtRupiah(disc)}
+        </span>
+        <span className="mb-0.5 inline-flex items-center rounded-full bg-[#FFD166] px-2.5 py-1 font-mono text-[13px] font-bold leading-none text-[#221a04] shadow-[0_4px_14px_-4px_rgba(255,209,102,0.55)]">
+          −{percent}%
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-white/[0.12] pt-3 text-[13.5px] text-white/70">
         <span className="font-mono text-[13px] [text-decoration:line-through] [text-decoration-color:rgba(175,200,255,0.75)] [text-decoration-thickness:2px]">
           {fmtRupiah(regular)}
         </span>
-        <span className="rounded-full border border-white/[0.22] bg-white/[0.14] px-2.5 py-1 font-mono text-[12.5px] font-bold text-white">
-          Hemat {percent}%
+        <span className="font-mono text-[12.5px] font-semibold text-[#8FE3B4]">
+          Hemat {fmtRupiah(regular - disc)}
         </span>
       </div>
     </div>
@@ -402,6 +497,7 @@ function UpcomingHero({
   flashPrice: number;
   start: string | null;
 }) {
+  const pct = pctOff(regular, flashPrice);
   return (
     <div className="relative mx-0 mb-4 mt-1 overflow-hidden rounded-3xl px-[22px] pb-[22px] pt-6 text-white"
       style={{
@@ -409,11 +505,21 @@ function UpcomingHero({
           "radial-gradient(130% 100% at 85% 0%, rgba(255,122,183,0.30) 0%, transparent 55%), linear-gradient(160deg, #2E2A35 0%, var(--color-night) 70%)"
       }}
     >
+      <span aria-hidden className="pointer-events-none absolute -right-4 -top-5 opacity-[0.09] [&_svg]:h-[110px] [&_svg]:w-[110px]">
+        {Icon.bolt}
+      </span>
       <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/60">Harga Normal</span>
-      <div className="mt-2.5 font-mono text-[40px] font-bold leading-none tracking-[-0.02em]">{fmtRupiah(regular)}</div>
-      <div className="mt-2 flex flex-wrap items-center gap-2.5 text-[13.5px] text-white/70">
-        <span>
-          Flash sale {fmtRupiah(flashPrice)} dimulai {fmtWitaDateID(start)} WITA
+      <div className="mt-2.5 font-mono text-[40px] font-bold leading-none tracking-[-0.02em] [font-variant-numeric:tabular-nums]">
+        {fmtRupiah(regular)}
+      </div>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <span className="rounded-full border border-[#FF8FBE]/40 bg-[#FF8FBE]/15 px-2.5 py-1 font-mono text-[12.5px] font-bold text-[#FFB8D6]">
+          Flash {fmtRupiah(flashPrice)}
+          {pct > 0 && ` · −${pct}%`}
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-[13.5px] text-white/70 [&_svg]:h-[14px] [&_svg]:w-[14px]">
+          {Icon.clock}
+          Mulai {fmtWitaDateID(start)} WITA
         </span>
       </div>
     </div>
@@ -434,16 +540,21 @@ function FlashHero({ flash, regular, remain }: { flash: FlashSale; regular: numb
         <span className="inline-flex text-[#FFD166] [&_svg]:h-[15px] [&_svg]:w-[15px]">{Icon.bolt}</span>
         Flash Sale Berlaku
       </span>
-      <div className="mt-2.5 flex flex-wrap items-baseline gap-2 font-mono text-[40px] font-bold leading-[1.05] tracking-[-0.02em]">
-        {fmtRupiah(flash.price)}
+      <div className="mt-2.5 flex flex-wrap items-end gap-x-3 gap-y-2 font-mono text-[40px] font-bold leading-[1.05] tracking-[-0.02em]">
+        <span className="[font-variant-numeric:tabular-nums]">{fmtRupiah(flash.price)}</span>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2.5 text-[13.5px] text-white/70">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-white/[0.12] pt-3 text-[13.5px] text-white/70">
         <span className="font-mono text-[13px] [text-decoration:line-through] [text-decoration-color:rgba(255,163,205,0.75)] [text-decoration-thickness:2px]">
           {fmtRupiah(regular)}
         </span>
-        <span className="rounded-full border border-white/[0.22] bg-white/[0.14] px-2.5 py-1 font-mono text-[12.5px] font-bold text-white">
-          Hemat {flash.discount_percent}%
+        <span className="inline-flex items-center rounded-full bg-[#FFD166] px-2.5 py-1 font-mono text-[13px] font-bold leading-none text-[#221a04] shadow-[0_4px_14px_-4px_rgba(255,209,102,0.55)]">
+          −{flash.discount_percent}%
         </span>
+        {regular - flash.price > 0 && (
+          <span className="font-mono text-[12.5px] font-semibold text-[#8FE3B4]">
+            Hemat {fmtRupiah(regular - flash.price)}
+          </span>
+        )}
       </div>
       <div className="mt-4 hidden items-center gap-2 rounded-[14px] border border-white/20 bg-white/10 px-3.5 py-2.5 data-[show=true]:flex" data-show={!expired}>
         <span className="shrink-0 text-[#FFD166] [&_svg]:h-[17px] [&_svg]:w-[17px]">{Icon.clock}</span>
