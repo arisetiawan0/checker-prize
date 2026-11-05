@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { staffOk, rateLimit, unauthorized } from "@/lib/auth";
 import { buildCatalogHeaders, getCatalog, buildPricePayload } from "@/lib/catalog";
+import { findCatalogProduct } from "@/lib/catalog-lookup";
 import type { PriceNotFound } from "@/lib/types";
 
 /**
@@ -18,14 +19,12 @@ export async function GET(req: NextRequest) {
   }
 
   const catalog = await getCatalog();
-  const key = code.toLowerCase();
-  const promo = catalog.promo.get(key);
-  const master = catalog.master.get(key);
-  if (!promo && !master) {
+  const product = findCatalogProduct(catalog, code);
+  if (!product) {
     return NextResponse.json({ error: "PRODUCT_NOT_FOUND" } satisfies PriceNotFound, { status: 404 });
   }
 
-  return NextResponse.json(buildPricePayload(promo, master, catalog.fetchedAt), {
+  return NextResponse.json(buildPricePayload(product.promo, product.master, catalog.fetchedAt), {
     headers: buildCatalogHeaders(catalog)
   });
 }

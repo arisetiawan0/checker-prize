@@ -8,7 +8,7 @@ import type { SearchResultItem } from "@/lib/types";
  * GET /api/search?q={teks} — PRD §8. Maks 20 hasil.
  * Memakai indeks pre-built per refresh katalog (lib/search-index.ts) —
  * tidak menyisir 60 rb baris per ketikan.
- * Prioritas: persis barcode > awalan nama > mengandung nama > barcode,
+ * Prioritas: persis barcode > digit akhir barcode (≥6 digit) > awalan nama > mengandung nama > barcode,
  * promo selalu di atas non-promo.
  */
 export async function GET(req: NextRequest) {
@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
     for (const e of idx.byBarcode) {
       let score = -1;
       if (e.barcode === q) score = 100;
+      else if (q.length >= 6 && e.barcode.endsWith(q)) score = 95;
       else if (e.promo && e.barcode.startsWith(q)) score = 90;
       else if (!e.promo && e.barcode.startsWith(q)) score = 70;
       else if (e.barcode.includes(q)) score = 40;

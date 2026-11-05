@@ -56,6 +56,17 @@ harga disc reguler (LT PRO: tier per tanggal 5–7 vs 8 November). Semua waktu W
 `seconds_remaining` dari server sehingga countdown tidak bergantung jam perangkat.
 Katalog di-cache 45 detik — perubahan spreadsheet terlihat ≤ ~1 menit (PRD §7.4).
 
+Cek harga menerima barcode lengkap atau minimal 6 digit terakhir jika hanya cocok
+ke satu barcode di katalog. Barcode lengkap selalu diprioritaskan. Jika potongan
+barcode cocok ke beberapa produk, gunakan pencarian manual untuk memilih barang;
+hasil digit akhir ditampilkan sebelum kecocokan barcode sebagian lainnya.
+
+Uji pencocokan barcode (Node.js 22.18+), jalankan dari folder `web`:
+
+```bash
+node --test ../tools/catalog-lookup.test.cjs
+```
+
 ## Sumber data: spreadsheet promo multi-tab
 
 Satu spreadsheet (id di `SPREADSHEET_ID`), 4 tab produk + master POS tersisip kolom N–Q:
