@@ -162,9 +162,8 @@ export function ResultSheet({
           />
         ) : promo_status === "after" ? (
           <PlainHero label="Harga Normal" price={effective_price} banner={eventBanner(event, "after")} />
-        ) : promo_price !== null && promo_price < effective_price ? (
-          /* disc aktif tapi hero reguler — harga efektif = disc */
-          <DiscHero regular={regular_price} disc={effective_price} percent={Math.round(((regular_price - effective_price) / regular_price) * 100)} />
+        ) : promo_price !== null && effective_price < regular_price ? (
+          <DiscHero regular={regular_price} disc={effective_price} percent={pctOff(regular_price, effective_price)} />
         ) : (
           <PlainHero label="Harga Normal" price={effective_price} />
         )}

@@ -227,8 +227,16 @@ function cell(v: unknown): string {
 }
 
 /**
- * "34.000", "Rp 29.900,00", " 34.000 " → 34000 (PRD §5.3: sel non-angka → null).
- * Konvensi Indonesia: titik = pemisah ribuan, koma = desimal.
+ * "34.000", "Rp 29.900,00", " Rp33,920" → 34000 / 29900 / 33920 (PRD §5.3:
+ * sel non-angka → null). Konvensi Indonesia: titik = ribuan, koma = desimal —
+ * TAPI operator kadang menulis ribuan gaya US ("Rp34,000"). Aturan:
+ *   - titik DAN koma     → pemisah terakhir = desimal, lainnya ribuan
+ *                          ("29.900,00" → 29900, "29,900.00" → 29900)
+ *   - hanya koma         → ribuan bila tiap kelompok di belakangnya pas 3 digit
+ *                          ("33,920" → 33920, "1,234,567" → 1234567),
+ *                          selain itu desimal ("33,92" → 33,92)
+ *   - hanya titik        → aturan sama ("34.000" → 34000, "34.5" → 34,5)
+ * Harga rupiah di data ini selalu bulat, jadi "Rp33,920" nyaris pasti 33.920.
  */
 export function parseRupiahID(s: string): number | null {
   const t = cell(s);
@@ -238,16 +246,33 @@ export function parseRupiahID(s: string): number | null {
   if (!cleaned || !/\d/.test(cleaned)) return null;
   const neg = cleaned.startsWith("-");
   cleaned = cleaned.replace(/-/g, "");
-  if (cleaned.includes(",")) {
-    // koma = desimal: "29.900,00" → "29900.00"
-    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
-  } else {
-    // titik = ribuan: "34.000" → "34000"
+  if (!cleaned) return null;
+
+  const hasDot = cleaned.includes(".");
+  const hasComma = cleaned.includes(",");
+  if (hasDot && hasComma) {
+    // pemisah yang paling kanan = desimal
+    if (cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")) {
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
+  } else if (hasComma && kelompok3(cleaned, ",")) {
+    cleaned = cleaned.replace(/,/g, "");
+  } else if (hasComma) {
+    cleaned = cleaned.replace(",", ".");
+  } else if (hasDot && kelompok3(cleaned, ".")) {
     cleaned = cleaned.replace(/\./g, "");
   }
   const n = Number(cleaned);
   if (!Number.isFinite(n) || n <= 0) return null;
   return neg ? -n : n;
+}
+
+/** true bila `s` cuma pakai `sep` sebagai pemisah ribuan: tiap kelompok di belakangnya tepat 3 digit ("33,920", "1,234,567"). */
+function kelompok3(s: string, sep: string): boolean {
+  const parts = s.split(sep);
+  return parts.length > 1 && parts.slice(1).every((p) => /^\d{3}$/.test(p));
 }
 
 /** "15%", "25", "-" → 15 / 25 / null (persen diskon). */
