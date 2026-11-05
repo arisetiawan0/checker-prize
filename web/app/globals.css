@@ -183,11 +183,141 @@ button {
   animation: shimmer 1.4s linear infinite;
 }
 
+/* ---------- PIN feedback & unlock ---------- */
+.pin-card,
+.pin-brand {
+  transition: background-color 200ms ease, border-color 200ms ease;
+}
+
+.pin-brand-logo,
+.pin-brand-lock {
+  transition: opacity 160ms ease, transform 220ms var(--ease-out-soft);
+}
+.pin-brand-lock {
+  opacity: 0;
+  transform: translateY(4px) scale(0.92);
+}
+.pin-gate[data-phase="checking"] .pin-brand-logo,
+.pin-gate[data-phase="success"] .pin-brand-logo {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.96);
+}
+.pin-gate[data-phase="checking"] .pin-brand-lock,
+.pin-gate[data-phase="success"] .pin-brand-lock {
+  opacity: 1;
+  transform: none;
+}
+
+.pin-digit-input {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: transparent;
+  background: var(--color-elev);
+  border-color: var(--color-line-strong);
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.pin-digit-slot[data-filled="true"] .pin-digit-input {
+  background: var(--color-brand-bg);
+  border-color: var(--color-brand-line);
+}
+.pin-digit-input:focus-visible {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3.5px var(--color-brand-bg);
+}
+.pin-digit-input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+.pin-digit-dot {
+  background: var(--color-ink);
+  opacity: 0;
+  transform: translateY(2px) scale(0.75);
+  transition: transform 180ms var(--ease-out-soft), opacity 120ms ease;
+}
+.pin-digit-slot[data-filled="true"] .pin-digit-dot {
+  opacity: 1;
+  transform: none;
+}
+.pin-gate[data-phase="checking"] .pin-digit-dot {
+  animation: pin-checking 840ms ease-in-out infinite;
+  animation-delay: calc(var(--pin-index) * 60ms);
+}
+
+.pin-lock-shackle {
+  transform-origin: 8px 10px;
+  transition: transform 240ms var(--ease-out-soft);
+}
+.pin-lock-keyhole,
+.pin-lock-check {
+  transform-origin: center;
+  transition: opacity 140ms ease, transform 180ms var(--ease-out-soft);
+}
+.pin-lock-check {
+  opacity: 0;
+  transform: translateY(2px) scale(0.9);
+}
+.pin-gate[data-phase="success"] .pin-lock-shackle {
+  transform: translateY(-2px) rotate(-24deg);
+}
+.pin-gate[data-phase="success"] .pin-lock-keyhole {
+  opacity: 0;
+}
+.pin-gate[data-phase="success"] .pin-lock-check {
+  opacity: 1;
+  transform: none;
+}
+.pin-gate[data-phase="success"] .pin-brand,
+.pin-gate[data-phase="success"] .pin-submit {
+  background: #24754e;
+}
+.pin-gate[data-phase="success"] .pin-digit-input {
+  background: var(--color-ok-bg);
+  border-color: var(--color-ok-line);
+}
+.pin-gate[data-phase="success"] .pin-digit-dot {
+  background: #24754e;
+}
+.pin-gate[data-phase="success"] .pin-card {
+  border-color: var(--color-ok-line);
+}
+.pin-gate[data-phase="success"] {
+  pointer-events: none;
+  animation: pin-gate-exit 180ms var(--ease-out-soft) 300ms forwards;
+}
+
+.pin-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgb(255 255 255 / 30%);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: pin-spinner 600ms linear infinite;
+}
+.pin-button-label {
+  animation: view-in 160ms var(--ease-out-soft) both;
+}
+
+@keyframes pin-checking {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-3px); }
+}
+@keyframes pin-spinner {
+  to { transform: rotate(360deg); }
+}
+@keyframes pin-gate-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  .pin-gate[data-phase="checking"] .pin-digit-dot,
+  .pin-spinner,
+  .pin-gate[data-phase="success"] {
+    animation: none !important;
   }
 }
