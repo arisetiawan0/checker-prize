@@ -171,7 +171,7 @@ export function AppShell() {
     <main id="konten" className="min-h-dvh">
       <a
         href="#konten"
-        className="sr-only rounded-b-xl bg-night px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[80]"
+        className="sr-only rounded-b-xl bg-brand px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[80]"
       >
         Lewati ke konten utama
       </a>

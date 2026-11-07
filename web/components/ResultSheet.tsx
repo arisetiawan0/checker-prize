@@ -100,7 +100,7 @@ export function ResultSheet({
           <div className="mx-auto mb-[18px] grid h-[86px] w-[86px] place-items-center rounded-[26px] border border-line bg-surface text-ink-3 shadow-card [&_svg]:h-9 [&_svg]:w-9">
             {Icon.search}
           </div>
-          <h3 className="mb-1.5 text-[19px] font-bold tracking-[-0.01em]">Produk tidak ditemukan</h3>
+          <h3 className="font-display mb-1.5 text-[20px] font-bold tracking-[-0.01em]">Produk tidak ditemukan</h3>
           <p className="mx-auto max-w-[34ch] text-[13.5px] leading-relaxed text-ink-2">
             Kode <code className="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-xs">{result.code}</code> tidak
             terdaftar di spreadsheet. Coba cari manual, atau lapor ke admin jika barcode ini seharusnya ada.
@@ -173,7 +173,7 @@ export function ResultSheet({
             {initialsOf(product.name)}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-lg font-bold leading-tight tracking-[-0.015em]">{product.name}</h3>
+            <h3 className="font-display text-lg font-bold leading-tight tracking-[-0.015em]">{product.name}</h3>
             <p className="mt-0.5 font-mono text-xs text-ink-3">
               {product.barcode}
               {promo_tab_label ? ` · ${promo_tab_label}` : ""}
@@ -240,7 +240,7 @@ export function ResultSheet({
       <div
         aria-hidden
         onClick={onClose}
-        className={`fixed inset-0 z-40 bg-[rgba(16,16,24,0.42)] backdrop-blur-[3px] transition-opacity duration-300 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`fixed inset-0 z-40 bg-[rgba(70,45,35,0.25)] backdrop-blur-[3px] transition-opacity duration-300 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}
       />
       <section
         ref={sectionRef}
@@ -270,7 +270,7 @@ export function ResultSheet({
           <button
             type="button"
             onClick={onRescan}
-            className="inline-flex h-[54px] items-center justify-center gap-2 rounded-[17px] bg-night text-base font-semibold tracking-[0.01em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_-10px_rgba(16,16,20,0.55)] transition hover:bg-[#24222B] active:scale-[0.975] [&_svg]:h-[19px] [&_svg]:w-[19px]"
+            className="inline-flex h-[54px] items-center justify-center gap-2 rounded-[17px] bg-brand text-base font-semibold tracking-[0.01em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_24px_-10px_rgba(198,61,121,0.6)] transition hover:bg-brand-deep active:scale-[0.975] [&_svg]:h-[19px] [&_svg]:w-[19px]"
           >
             {Icon.scan}
             Scan Lagi
@@ -418,28 +418,28 @@ function PlainHero({
   chipPercent?: number;
 }) {
   return (
-    <div className="relative mx-0 mb-4 mt-1 overflow-hidden rounded-3xl px-[22px] pb-[22px] pt-6 text-white"
+    <div className="grain relative mx-0 mb-4 mt-1 overflow-hidden rounded-3xl border border-line px-[22px] pb-[22px] pt-6 text-ink"
       style={{
         background:
-          "radial-gradient(130% 100% at 85% 0%, rgba(255,122,183,0.30) 0%, transparent 55%), linear-gradient(160deg, #2E2A35 0%, var(--color-night) 70%)"
+          "radial-gradient(130% 100% at 85% 0%, rgba(226,88,144,0.12) 0%, transparent 55%), linear-gradient(160deg, #fdf0e7 0%, #ffe8f0 100%)"
       }}
     >
-      <span aria-hidden className="pointer-events-none absolute -right-4 -top-5 opacity-[0.09] [&_svg]:h-[110px] [&_svg]:w-[110px]">
+      <span aria-hidden className="pointer-events-none absolute -right-4 -top-5 text-ink opacity-[0.06] [&_svg]:h-[110px] [&_svg]:w-[110px]">
         {Icon.tag}
       </span>
-      <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/60">{label}</span>
+      <span className="kicker text-[11px] text-ink-2">{label}</span>
       <div className="mt-2.5 font-mono text-[40px] font-bold leading-none tracking-[-0.02em] [font-variant-numeric:tabular-nums]">
         {fmtRupiah(price)}
       </div>
       {(banner || chipPercent) && (
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
           {chipPercent !== undefined && (
-            <span className="rounded-full border border-[#FFD166]/40 bg-[#FFD166]/15 px-2.5 py-1 font-mono text-[12.5px] font-bold text-[#FFD166]">
+            <span className="rounded-full border border-warn-line bg-warn-bg px-2.5 py-1 font-mono text-[12.5px] font-bold text-warn">
               Hemat {chipPercent}%
             </span>
           )}
           {banner && (
-            <span className="inline-flex items-center gap-1.5 text-[13.5px] text-white/70 [&_svg]:h-[14px] [&_svg]:w-[14px]">
+            <span className="inline-flex items-center gap-1.5 text-[13.5px] text-ink-3 [&_svg]:h-[14px] [&_svg]:w-[14px]">
               {Icon.clock}
               {banner}
             </span>
@@ -453,32 +453,32 @@ function PlainHero({
 /** Hero disc reguler aktif (selama event, di luar sesi flash). */
 function DiscHero({ regular, disc, percent }: { regular: number; disc: number; percent: number }) {
   return (
-    <div className="relative mb-4 mt-1 overflow-hidden rounded-3xl px-[22px] pb-[22px] pt-6 text-white"
+    <div className="grain relative mb-4 mt-1 overflow-hidden rounded-3xl border border-line px-[22px] pb-[22px] pt-6 text-ink"
       style={{
         background:
-          "radial-gradient(130% 100% at 85% 0%, rgba(122,162,255,0.32) 0%, transparent 55%), linear-gradient(160deg, #223047 0%, #1B2436 55%, #141A28 100%)"
+          "radial-gradient(130% 100% at 85% 0%, rgba(255,255,255,0.6) 0%, transparent 50%), linear-gradient(160deg, #fff2d6 0%, #ffe9c2 55%, #ffdcaa 100%)"
       }}
     >
-      <span aria-hidden className="pointer-events-none absolute -right-4 -top-5 opacity-[0.09] [&_svg]:h-[110px] [&_svg]:w-[110px]">
+      <span aria-hidden className="pointer-events-none absolute -right-4 -top-5 text-ink opacity-[0.06] [&_svg]:h-[110px] [&_svg]:w-[110px]">
         {Icon.tag}
       </span>
-      <span className="inline-flex items-center gap-[7px] text-[11px] font-bold uppercase tracking-[0.22em] text-[#AFC8FF]">
-        <span className="inline-flex text-[#FFD166] [&_svg]:h-[15px] [&_svg]:w-[15px]">{Icon.tag}</span>
+      <span className="kicker inline-flex items-center gap-[7px] text-[11px] text-[#a06f0e]">
+        <span className="inline-flex text-[#c98a04] [&_svg]:h-[15px] [&_svg]:w-[15px]">{Icon.tag}</span>
         Harga Promo
       </span>
       <div className="mt-2.5 flex flex-wrap items-end gap-x-3 gap-y-2">
         <span className="font-mono text-[40px] font-bold leading-none tracking-[-0.02em] [font-variant-numeric:tabular-nums]">
           {fmtRupiah(disc)}
         </span>
-        <span className="mb-0.5 inline-flex items-center rounded-full bg-[#FFD166] px-2.5 py-1 font-mono text-[13px] font-bold leading-none text-[#221a04] shadow-[0_4px_14px_-4px_rgba(255,209,102,0.55)]">
+        <span className="mb-0.5 inline-flex items-center rounded-full bg-[#FFD166] px-2.5 py-1 font-mono text-[13px] font-bold leading-none text-[#4a3400] shadow-[0_4px_14px_-4px_rgba(201,138,4,0.5)]">
           −{percent}%
         </span>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-white/[0.12] pt-3 text-[13.5px] text-white/70">
-        <span className="font-mono text-[13px] [text-decoration:line-through] [text-decoration-color:rgba(175,200,255,0.75)] [text-decoration-thickness:2px]">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-ink/[0.08] pt-3 text-[13.5px] text-ink-3">
+        <span className="font-mono text-[13px] text-ink-2 [text-decoration:line-through] [text-decoration-color:rgba(32,27,21,0.35)] [text-decoration-thickness:2px]">
           {fmtRupiah(regular)}
         </span>
-        <span className="font-mono text-[12.5px] font-semibold text-[#8FE3B4]">
+        <span className="font-mono text-[12.5px] font-semibold text-ok">
           Hemat {fmtRupiah(regular - disc)}
         </span>
       </div>
@@ -498,25 +498,25 @@ function UpcomingHero({
 }) {
   const pct = pctOff(regular, flashPrice);
   return (
-    <div className="relative mx-0 mb-4 mt-1 overflow-hidden rounded-3xl px-[22px] pb-[22px] pt-6 text-white"
+    <div className="grain relative mx-0 mb-4 mt-1 overflow-hidden rounded-3xl border border-line px-[22px] pb-[22px] pt-6 text-ink"
       style={{
         background:
-          "radial-gradient(130% 100% at 85% 0%, rgba(255,122,183,0.30) 0%, transparent 55%), linear-gradient(160deg, #2E2A35 0%, var(--color-night) 70%)"
+          "radial-gradient(130% 100% at 85% 0%, rgba(226,88,144,0.12) 0%, transparent 55%), linear-gradient(160deg, #fdf0e7 0%, #ffe8f0 100%)"
       }}
     >
-      <span aria-hidden className="pointer-events-none absolute -right-4 -top-5 opacity-[0.09] [&_svg]:h-[110px] [&_svg]:w-[110px]">
+      <span aria-hidden className="pointer-events-none absolute -right-4 -top-5 text-ink opacity-[0.06] [&_svg]:h-[110px] [&_svg]:w-[110px]">
         {Icon.bolt}
       </span>
-      <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/60">Harga Normal</span>
+      <span className="kicker text-[11px] text-ink-2">Harga Normal</span>
       <div className="mt-2.5 font-mono text-[40px] font-bold leading-none tracking-[-0.02em] [font-variant-numeric:tabular-nums]">
         {fmtRupiah(regular)}
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <span className="rounded-full border border-[#FF8FBE]/40 bg-[#FF8FBE]/15 px-2.5 py-1 font-mono text-[12.5px] font-bold text-[#FFB8D6]">
+        <span className="rounded-full border border-brand-line bg-white px-2.5 py-1 font-mono text-[12.5px] font-bold text-brand-ink">
           Flash {fmtRupiah(flashPrice)}
           {pct > 0 && ` · −${pct}%`}
         </span>
-        <span className="inline-flex items-center gap-1.5 text-[13.5px] text-white/70 [&_svg]:h-[14px] [&_svg]:w-[14px]">
+        <span className="inline-flex items-center gap-1.5 text-[13.5px] text-ink-3 [&_svg]:h-[14px] [&_svg]:w-[14px]">
           {Icon.clock}
           Mulai {fmtWitaDateID(start)} WITA
         </span>
@@ -529,39 +529,39 @@ function FlashHero({ flash, regular, remain }: { flash: FlashSale; regular: numb
   const expired = remain !== null && remain <= 0;
   return (
     <div
-      className="relative mb-4 mt-1 overflow-hidden rounded-3xl px-[22px] pb-[22px] pt-6 text-white"
+      className="grain relative mb-4 mt-1 overflow-hidden rounded-3xl border border-brand-line px-[22px] pb-[22px] pt-6 text-ink"
       style={{
         background:
-          "radial-gradient(130% 100% at 85% 0%, rgba(255,122,183,0.38) 0%, transparent 55%), linear-gradient(160deg, #57223D 0%, #3A1B2E 55%, #241019 100%)"
+          "radial-gradient(130% 100% at 85% 0%, rgba(255,255,255,0.6) 0%, transparent 50%), linear-gradient(160deg, #ffe3ee 0%, #ffd3e4 55%, #ffc6da 100%)"
       }}
     >
-      <span className="inline-flex items-center gap-[7px] text-[11px] font-bold uppercase tracking-[0.22em] text-[#FFB8D6]">
-        <span className="inline-flex text-[#FFD166] [&_svg]:h-[15px] [&_svg]:w-[15px]">{Icon.bolt}</span>
+      <span className="kicker inline-flex items-center gap-[7px] text-[11px] text-brand-deep">
+        <span className="inline-flex text-[#c98a04] [&_svg]:h-[15px] [&_svg]:w-[15px]">{Icon.bolt}</span>
         Flash Sale Berlaku
       </span>
-      <div className="mt-2.5 flex flex-wrap items-end gap-x-3 gap-y-2 font-mono text-[40px] font-bold leading-[1.05] tracking-[-0.02em]">
+      <div className="mt-2.5 flex flex-wrap items-end gap-x-3 gap-y-2 font-mono text-[40px] font-bold leading-[1.05] tracking-[-0.02em] text-brand-ink">
         <span className="[font-variant-numeric:tabular-nums]">{fmtRupiah(flash.price)}</span>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-white/[0.12] pt-3 text-[13.5px] text-white/70">
-        <span className="font-mono text-[13px] [text-decoration:line-through] [text-decoration-color:rgba(255,163,205,0.75)] [text-decoration-thickness:2px]">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-ink/[0.08] pt-3 text-[13.5px] text-ink-3">
+        <span className="font-mono text-[13px] text-ink-2 [text-decoration:line-through] [text-decoration-color:rgba(32,27,21,0.35)] [text-decoration-thickness:2px]">
           {fmtRupiah(regular)}
         </span>
-        <span className="inline-flex items-center rounded-full bg-[#FFD166] px-2.5 py-1 font-mono text-[13px] font-bold leading-none text-[#221a04] shadow-[0_4px_14px_-4px_rgba(255,209,102,0.55)]">
+        <span className="inline-flex items-center rounded-full bg-brand px-2.5 py-1 font-mono text-[13px] font-bold leading-none text-white shadow-[0_4px_14px_-4px_rgba(198,61,121,0.6)]">
           −{flash.discount_percent}%
         </span>
         {regular - flash.price > 0 && (
-          <span className="font-mono text-[12.5px] font-semibold text-[#8FE3B4]">
+          <span className="font-mono text-[12.5px] font-semibold text-ok">
             Hemat {fmtRupiah(regular - flash.price)}
           </span>
         )}
       </div>
-      <div className="mt-4 hidden items-center gap-2 rounded-[14px] border border-white/20 bg-white/10 px-3.5 py-2.5 data-[show=true]:flex" data-show={!expired}>
-        <span className="shrink-0 text-[#FFD166] [&_svg]:h-[17px] [&_svg]:w-[17px]">{Icon.clock}</span>
-        <span className="flex-1 font-mono text-[17px] font-bold tracking-[0.03em] [font-variant-numeric:tabular-nums]">
+      <div className="mt-4 hidden items-center gap-2 rounded-[14px] border border-brand-line bg-white/90 px-3.5 py-2.5 data-[show=true]:flex" data-show={!expired}>
+        <span className="shrink-0 text-brand [&_svg]:h-[17px] [&_svg]:w-[17px]">{Icon.clock}</span>
+        <span className="flex-1 font-mono text-[17px] font-bold tracking-[0.03em] text-brand-ink [font-variant-numeric:tabular-nums]">
           {remain !== null && remain > 0 && (
             <>
               {fmtClock(remain)}
-              <span className="ml-1.5 font-sans text-[11.5px] font-medium tracking-[0.02em] text-white/60">
+              <span className="ml-1.5 font-sans text-[11.5px] font-medium tracking-[0.02em] text-ink-3">
                 {remain >= 3_600_000 ? "jam" : "menit"} lagi
               </span>
             </>

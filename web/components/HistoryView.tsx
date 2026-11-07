@@ -52,7 +52,7 @@ export function HistoryView({ active, entries, onBack, onPick, onClear, onStartS
           {Icon.back}
         </button>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[22px] font-bold leading-tight tracking-[-0.02em]">Riwayat Scan</h2>
+          <h2 className="font-display text-[23px] font-bold leading-tight tracking-[-0.02em]">Riwayat Scan</h2>
           <p className="mt-px text-[13.5px] text-ink-3">
             {entries.length ? `${entries.length} scan terakhir · tersimpan di perangkat ini` : "Tersimpan di perangkat ini"}
           </p>
@@ -76,7 +76,7 @@ export function HistoryView({ active, entries, onBack, onPick, onClear, onStartS
           <div className="mx-auto mb-[18px] grid h-[76px] w-[76px] place-items-center rounded-3xl border border-line bg-elev text-ink-3 [&_svg]:h-8 [&_svg]:w-8">
             {Icon.history}
           </div>
-          <h3 className="text-[17px] font-bold tracking-[-0.01em]">Belum ada scan</h3>
+          <h3 className="font-display text-[18px] font-bold tracking-[-0.01em]">Belum ada scan</h3>
           <p className="mx-auto mt-1.5 mb-[18px] max-w-[36ch] text-[13.5px] leading-relaxed text-ink-2">
             Setiap barcode yang berhasil dipindai atau kode yang dicari akan muncul di sini, siap dibuka ulang.
           </p>

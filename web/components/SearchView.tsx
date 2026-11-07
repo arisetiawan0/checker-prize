@@ -74,7 +74,7 @@ export function SearchView({ active, seed, onBack, onPick }: SearchViewProps) {
           {Icon.back}
         </button>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[22px] font-bold leading-tight tracking-[-0.02em]">Cari Produk</h2>
+          <h2 className="font-display text-[23px] font-bold leading-tight tracking-[-0.02em]">Cari Produk</h2>
           <p className="mt-px text-[13.5px] text-ink-3">Barcode, SKU, atau nama produk</p>
         </div>
       </header>
@@ -141,7 +141,7 @@ export function SearchView({ active, seed, onBack, onPick }: SearchViewProps) {
               type="button"
               onClick={() => onPick(r.barcode)}
               style={{ animationDelay: `${Math.min(i * 35, 240)}ms` }}
-              className="anim-rise relative grid w-full grid-cols-[54px_1fr_auto] items-center gap-3.5 rounded-2xl border border-line bg-surface p-3 pl-4 pr-4 text-left shadow-[0_1px_2px_rgba(34,31,38,0.04)] transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card active:scale-[0.985]"
+              className="anim-rise relative grid w-full grid-cols-[54px_1fr_auto] items-center gap-3.5 rounded-2xl border border-line bg-surface p-3 pl-4 pr-4 text-left shadow-[0_1px_2px_rgba(32,27,21,0.04)] transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card active:scale-[0.985]"
             >
               {r.flash_active && <span aria-hidden className="absolute inset-y-2.5 left-[5px] w-[3px] rounded-full bg-brand" />}
               <span className={`grid h-[54px] w-[54px] place-items-center overflow-hidden rounded-[13px] border text-xs font-bold tracking-[0.04em] ${toneOf(r.name)}`}>
@@ -165,11 +165,11 @@ export function SearchView({ active, seed, onBack, onPick }: SearchViewProps) {
                   </>
                 ) : r.promo && r.effective_price < r.regular_price ? (
                   <>
-                    <em className="mb-0.5 inline-block rounded-md bg-[#223047] px-1.5 py-0.5 text-[10.5px] font-bold not-italic tracking-[0.08em] text-white">
+                    <em className="mb-0.5 inline-block rounded-md bg-ink px-1.5 py-0.5 text-[10.5px] font-bold not-italic tracking-[0.08em] text-white">
                       -{r.disc_reguler ?? r.disc_flash ?? 0}%
                     </em>
                     <strong className="font-mono text-[14.5px] font-bold tracking-[-0.01em] text-ink">{fmtRupiah(r.effective_price)}</strong>
-                    <span className="font-mono text-xs text-ink-3 [text-decoration:line-through] [text-decoration-color:rgba(34,31,38,0.4)] [text-decoration-thickness:1.5px]">
+                    <span className="font-mono text-xs text-ink-3 [text-decoration:line-through] [text-decoration-color:rgba(32,27,21,0.4)] [text-decoration-thickness:1.5px]">
                       {fmtRupiah(r.regular_price)}
                     </span>
                   </>
@@ -187,7 +187,7 @@ export function SearchView({ active, seed, onBack, onPick }: SearchViewProps) {
           <div className="mx-auto mb-[18px] grid h-[76px] w-[76px] place-items-center rounded-3xl border border-warn-line bg-warn-bg text-warn [&_svg]:h-8 [&_svg]:w-8">
             {Icon.warn}
           </div>
-          <h3 className="text-[17px] font-bold tracking-[-0.01em]">Gagal mengambil hasil</h3>
+          <h3 className="font-display text-[18px] font-bold tracking-[-0.01em]">Gagal mengambil hasil</h3>
           <p className="mx-auto mt-1.5 mb-[18px] max-w-[36ch] text-[13.5px] leading-relaxed text-ink-2">
             Koneksi ke server bermasalah atau sesi staff berakhir. Ulangi pencarian, atau kembali ke scanner.
           </p>
@@ -195,7 +195,7 @@ export function SearchView({ active, seed, onBack, onPick }: SearchViewProps) {
             <button
               type="button"
               onClick={() => setState({ type: "retry" })}
-              className="h-[50px] rounded-[16px] bg-night px-6 text-[15px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_-10px_rgba(16,16,20,0.55)] transition hover:bg-[#24222B] active:scale-[0.975]"
+              className="h-[50px] rounded-[16px] bg-brand px-6 text-[15px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_24px_-10px_rgba(198,61,121,0.6)] transition hover:bg-brand-deep active:scale-[0.975]"
             >
               Coba Lagi
             </button>
@@ -215,7 +215,7 @@ export function SearchView({ active, seed, onBack, onPick }: SearchViewProps) {
           <div className="mx-auto mb-[18px] grid h-[76px] w-[76px] place-items-center rounded-3xl border border-line bg-elev text-ink-3 [&_svg]:h-8 [&_svg]:w-8">
             {Icon.search}
           </div>
-          <h3 className="text-[17px] font-bold tracking-[-0.01em]">{q ? "Tidak ada produk cocok" : "Mulai mengetik untuk mencari"}</h3>
+          <h3 className="font-display text-[18px] font-bold tracking-[-0.01em]">{q ? "Tidak ada produk cocok" : "Mulai mengetik untuk mencari"}</h3>
           <p className="mx-auto mt-1.5 mb-[18px] max-w-[36ch] text-[13.5px] leading-relaxed text-ink-2">
             {q
               ? `Tidak ada hasil untuk "${q}". Coba kata kunci lain atau cek ejaan SKU.`

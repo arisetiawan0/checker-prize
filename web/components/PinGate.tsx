@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { BrandLogo } from "./icons";
 
 const PIN_KEY = "beauty.pc.unlocked";
 // Selaras dengan jeda 300 ms + fade 180 ms pada animasi pin-gate-exit.
@@ -166,32 +167,32 @@ export function PinGate({ onUnlock }: PinGateProps) {
   };
 
   return (
-    <section className="pin-gate fixed inset-0 flex flex-col items-center overflow-y-auto overflow-x-hidden px-4 py-[max(16px,env(safe-area-inset-top,0px))] pb-[max(16px,env(safe-area-inset-bottom,0px))]"
+    <section className="pin-gate grain fixed inset-0 flex flex-col items-center overflow-y-auto overflow-x-hidden px-4 py-[max(16px,env(safe-area-inset-top,0px))] pb-[max(16px,env(safe-area-inset-bottom,0px))]"
       data-phase={phase}
       aria-label="Masuk Beauty Price Checker"
       style={{
         background:
-          "radial-gradient(120% 90% at 85% -10%, #E9E0F4 0%, transparent 55%), radial-gradient(110% 80% at 0% 110%, var(--color-brand-bg) 0%, transparent 55%), var(--color-porcelain)"
+          "radial-gradient(120% 90% at 85% -10%, #ffe7d8 0%, transparent 55%), radial-gradient(110% 80% at 0% 110%, #ffd9e8 0%, transparent 55%), var(--color-porcelain)"
       }}
     >
       <div
         aria-hidden
         className="anim-floaty pointer-events-none absolute -top-[220px] right-[-160px] h-[520px] w-[520px] rounded-full blur-[10px]"
-        style={{ background: "radial-gradient(circle, rgba(194,71,126,0.22) 0%, transparent 65%)" }}
+        style={{ background: "radial-gradient(circle, rgba(226,88,144,0.28) 0%, transparent 65%)" }}
       />
       <div className="relative z-[1] my-auto w-[min(400px,100%)] py-4">
         <div className="pin-card anim-rise rounded-[28px] border border-line/90 bg-surface px-5 pb-6 pt-[26px] text-center shadow-card sm:px-7 sm:pb-7 sm:pt-[34px]">
           <div className="mb-3 flex flex-col items-center gap-2 sm:mb-[18px]">
-            <span aria-hidden="true" className="pin-brand relative grid h-[52px] w-[52px] place-items-center rounded-[17px] bg-night text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_10px_22px_-10px_rgba(21,19,26,0.55)]">
-              <span className="pin-brand-logo"><BrandIcon /></span>
+            <span aria-hidden="true" className="pin-brand relative grid h-[56px] w-[56px] place-items-center rounded-[17px] border border-line bg-surface text-brand-deep shadow-card">
+              <span className="pin-brand-logo"><BrandLogo size={34} /></span>
               <span className="pin-brand-lock absolute"><LockIcon /></span>
             </span>
             <p className="flex flex-col text-[19px] font-bold leading-tight tracking-[-0.01em]">
-              Beauty
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-3">Price Checker</span>
+              <span className="font-display text-[21px]">Beauty</span>
+              <span className="mt-0.5 font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-ink-3">Price Checker</span>
             </p>
           </div>
-          <h1 className="text-[21px] font-bold leading-snug tracking-[-0.02em] sm:text-[23px]">Masuk kode akses staff</h1>
+          <h1 className="font-display text-[23px] font-bold leading-snug tracking-[-0.02em] sm:text-[25px]">Masuk kode akses staff</h1>
           <p id="pin-hint" className="mx-auto mb-4 mt-2 max-w-[30ch] text-[13.5px] text-ink-2 sm:mb-[22px] sm:text-[14.5px]">
             Aplikasi khusus tim internal. Masukkan 6 digit kode akses outlet untuk mulai mengecek harga.
           </p>
@@ -254,7 +255,7 @@ export function PinGate({ onUnlock }: PinGateProps) {
             <button
               type="submit"
               disabled={busy}
-              className="pin-submit flex h-[54px] w-full items-center justify-center gap-2.5 rounded-[17px] bg-night text-base font-semibold tracking-[0.01em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_-10px_rgba(16,16,20,0.55)] transition-[transform,background-color] duration-150 enabled:active:scale-[0.975] enabled:hover:bg-[#24222B] disabled:cursor-wait"
+              className="pin-submit flex h-[54px] w-full items-center justify-center gap-2.5 rounded-[17px] bg-brand text-base font-semibold tracking-[0.01em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_24px_-10px_rgba(198,61,121,0.6)] transition-[transform,background-color] duration-150 enabled:active:scale-[0.975] enabled:hover:bg-brand-deep disabled:cursor-wait"
             >
               <span aria-hidden="true" className="grid h-5 w-5 place-items-center [&_svg]:h-5 [&_svg]:w-5">
                 {phase === "checking" ? <span className="pin-spinner" /> : <LockIcon />}
@@ -278,22 +279,6 @@ function LockIcon() {
       <rect x="5" y="10" width="14" height="11" rx="3" stroke="currentColor" strokeWidth="1.7" />
       <path className="pin-lock-keyhole" d="M12 14v3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
       <path className="pin-lock-check" d="m9 15.5 2 2 4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function BrandIcon() {
-  return (
-    <svg width="27" height="27" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 9.5 12 4l8 5.5v6.2c0 .9-.5 1.7-1.3 2.1l-6.2 3a1.9 1.9 0 0 1-1.7 0l-6.2-3A2.4 2.4 0 0 1 4 15.7V9.5Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path d="M8.5 12.5c.6.9 2 1.6 3.5 1.6s2.9-.7 3.5-1.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <circle cx="9" cy="9.8" r="1" fill="currentColor" />
-      <circle cx="15" cy="9.8" r="1" fill="currentColor" />
     </svg>
   );
 }

@@ -1,17 +1,26 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Sans, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
 import { SWRegister } from "@/components/SWRegister";
 import { Analytics } from "@vercel/analytics/next";
 
-const outfit = Outfit({
-  variable: "--font-outfit",
+// Display: Bricolage Grotesque — grotesk berkarakter untuk judul & wordmark
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
   subsets: ["latin"],
   display: "swap"
 });
 
-const jbMono = JetBrains_Mono({
-  variable: "--font-jbmono",
+// Body: Instrument Sans — bersih tapi tetap punya watak, bukan default generik
+const instrument = Instrument_Sans({
+  variable: "--font-instrument",
+  subsets: ["latin"],
+  display: "swap"
+});
+
+// Angka & kode: Spline Sans Mono — mono hangat dengan tabular figures
+const splineMono = Spline_Sans_Mono({
+  variable: "--font-spline",
   subsets: ["latin"],
   display: "swap"
 });
@@ -25,11 +34,14 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Beauty Price",
-    statusBarStyle: "black-translucent"
+    statusBarStyle: "default"
   },
   icons: {
-    icon: "/icons/icon-192.png",
-    apple: "/icons/icon-192.png"
+    icon: [
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }
+    ],
+    apple: "/icons/apple-touch-icon.png"
   }
 };
 
@@ -37,7 +49,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#101014"
+  themeColor: "#fdf9f4"
 };
 
 export default function RootLayout({
@@ -47,7 +59,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body className={`${outfit.variable} ${jbMono.variable} antialiased`}>
+      <body className={`${bricolage.variable} ${instrument.variable} ${splineMono.variable} antialiased`}>
         {children}
         <SWRegister />
         <Analytics />

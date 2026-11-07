@@ -38,9 +38,9 @@ const KIND_ICON: Record<ToastKind, React.ReactNode> = {
 };
 
 const KIND_COLOR: Record<ToastKind, string> = {
-  ok: "text-[#5ED5A8]",
-  err: "text-[#FF8A8A]",
-  info: "text-[#8AB6FF]"
+  ok: "text-ok",
+  err: "text-danger",
+  info: "text-brand"
 };
 
 export function ToastRegion({ items, dismiss }: { items: ToastItem[]; dismiss: (id: number) => void }) {
@@ -52,7 +52,7 @@ export function ToastRegion({ items, dismiss }: { items: ToastItem[]; dismiss: (
       {items.map((t) => (
         <div
           key={t.id}
-          className={`flex items-center gap-2.5 rounded-2xl border border-white/[0.16] bg-night-2 px-4 py-3 text-[13.5px] font-medium text-white shadow-[0_16px_40px_-12px_rgba(0,0,0,0.5)] ${
+          className={`flex items-center gap-2.5 rounded-2xl border border-line bg-white px-4 py-3 text-[13.5px] font-medium text-ink shadow-[0_16px_40px_-16px_rgba(60,40,30,0.35)] ${
             t.leaving ? "anim-toast-out" : "anim-toast-in"
           }`}
         >
@@ -62,7 +62,7 @@ export function ToastRegion({ items, dismiss }: { items: ToastItem[]; dismiss: (
             type="button"
             aria-label="Tutup notifikasi"
             onClick={() => dismiss(t.id)}
-            className="pointer-events-auto -mr-1.5 grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full text-white/55 transition hover:bg-white/[0.08] hover:text-white [&_svg]:h-[16px] [&_svg]:w-[16px]"
+            className="pointer-events-auto -mr-1.5 grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full text-ink-3 transition hover:bg-brand-bg hover:text-ink [&_svg]:h-[16px] [&_svg]:w-[16px]"
           >
             {Icon.close}
           </button>

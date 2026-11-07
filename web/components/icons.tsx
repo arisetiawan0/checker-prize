@@ -1,19 +1,11 @@
 /* Ikon SVG inline — stroke konsisten 1.7, tanpa emoji */
 
-export function BrandMark({ size = 24, className = "" }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className}>
-      <path
-        d="M4 9.5 12 4l8 5.5v6.2c0 .9-.5 1.7-1.3 2.1l-6.2 3a1.9 1.9 0 0 1-1.7 0l-6.2-3A2.4 2.4 0 0 1 4 15.7V9.5Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path d="M8.5 12.5c.6.9 2 1.6 3.5 1.6s2.9-.7 3.5-1.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      <circle cx="9" cy="9.8" r="1" fill="currentColor" />
-      <circle cx="15" cy="9.8" r="1" fill="currentColor" />
-    </svg>
-  );
+import Image from "next/image";
+
+/** Logo resmi: hati "b" (public/logo-heart.png, rasio 262×240). `size` = tinggi. */
+export function BrandLogo({ size = 28, className = "" }: { size?: number; className?: string }) {
+  const width = Math.round((size * 262) / 240);
+  return <Image src="/logo-heart.png" alt="" width={width} height={size} priority className={className} />;
 }
 
 export const Icon = {
