@@ -185,6 +185,7 @@ export function AppShell() {
           onOpenSearch={() => goSearch("")}
           onOpenHistory={() => setView("history")}
           onLockout={lockout}
+          onToast={show}
         />
       )}
       <SearchView

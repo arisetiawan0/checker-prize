@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BrandLogo, Icon } from "./icons";
 import { useBarcodeScanner } from "./useBarcodeScanner";
+import { usePwaInstall } from "./usePwaInstall";
+import type { ToastKind } from "./Toasts";
 
 export type ViewName = "scan" | "search" | "history";
 
@@ -18,10 +20,11 @@ interface ScanViewProps {
   onOpenSearch: () => void;
   onOpenHistory: () => void;
   onLockout: () => void;
+  onToast?: (kind: ToastKind, msg: string, ms?: number) => void;
 }
 
 /** Scanner penuh layar: viewfinder, status, pill kesegaran data, dock aksi (PRD F1, §9) */
-export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpenSearch, onOpenHistory, onLockout }: ScanViewProps) {
+export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpenSearch, onOpenHistory, onLockout, onToast }: ScanViewProps) {
   const [foundFlash, setFoundFlash] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [demoBuffer, setDemoBuffer] = useState("");
@@ -38,7 +41,31 @@ export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpe
     setTimeout(() => setFoundFlash(false), 900);
   }, []);
 
-  const { videoRef, status, torchOn, start, stop, toggleTorch, simulate } = useBarcodeScanner(onCodeVisual);
+  const { videoRef, status, torchOn, torchSupported, lowLight, start, stop, toggleTorch, simulate } = useBarcodeScanner(onCodeVisual);
+  const onToastRef = useRef(onToast);
+  onToastRef.current = onToast;
+
+  // senter: beri umpan balik jelas — iOS Safari tidak punya API senter,
+  // jadi jangan biarkan tombol gagal diam-diam
+  const handleTorch = useCallback(async () => {
+    const res = await toggleTorch();
+    if (res === "unsupported") {
+      onToastRef.current?.("info", "Senter tidak didukung browser ini (umumnya di iPhone) — gunakan senter bawaan HP dari Pusat Kontrol", 4600);
+    } else if (res === "failed") {
+      onToastRef.current?.("err", "Senter gagal menyala — coba tekan lagi", 3600);
+    }
+  }, [toggleTorch]);
+
+  // install PWA: Chrome/Edge pakai dialog native; iOS hanya bisa Add to Home Screen manual
+  const { installState, install } = usePwaInstall();
+  const handleInstall = useCallback(async () => {
+    if (installState === "ios") {
+      onToastRef.current?.("info", "Di iPhone: buka menu Bagikan (kotak dengan panah) di Safari lalu pilih \"Add to Home Screen\"", 6000);
+      return;
+    }
+    const outcome = await install();
+    if (outcome === "accepted") onToastRef.current?.("ok", "Aplikasi terpasang — buka dari home screen", 4200);
+  }, [installState, install]);
 
   // tap-to-start: kamera hanya menyala setelah tombol "Mulai Scan" ditekan
   const handleStart = useCallback(() => {
@@ -154,6 +181,26 @@ export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpe
             {demoBuffer && <span className="font-mono text-ink-3">({demoBuffer}…)</span>}
           </div>
         )}
+        {/* saran senter saat scene gelap (malam hari) — tappable bila senter didukung */}
+        {!camDown && !camIdle && lowLight && status === "running" && !torchOn && (
+          <div className="absolute bottom-[calc(88px+74px)] left-1/2 z-[4] -translate-x-1/2">
+            {torchSupported === false ? (
+              <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-warn-line bg-warn-bg px-4 py-2 text-[13px] font-semibold text-warn shadow-card">
+                <span className="shrink-0 [&_svg]:h-[16px] [&_svg]:w-[16px]">{Icon.torch}</span>
+                Cahaya kurang — gunakan senter bawaan HP
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleTorch()}
+                className="flex items-center gap-2 whitespace-nowrap rounded-full border border-warn-line bg-warn-bg px-4 py-2 text-[13px] font-semibold text-warn shadow-card transition active:scale-95"
+              >
+                <span className="shrink-0 [&_svg]:h-[16px] [&_svg]:w-[16px]">{Icon.torch}</span>
+                Cahaya kurang — nyalakan senter
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* header */}
@@ -171,8 +218,30 @@ export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpe
             className={`inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-full border border-line bg-white/90 px-3.5 font-mono text-[11.5px] font-medium tracking-[0.02em] text-ink-2 shadow-card backdrop-blur-md ${online ? "" : "is-stale"}`}
           >
             <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${online ? "anim-breathe bg-ok" : "bg-warn"}`} />
-            {online ? syncHHMM : "Offline — data mungkin usang"}
+            {/* di layar kecil tampil singkat (jam saja) agar muat bersama tombol install */}
+            {online ? (
+              <>
+                <span className="max-lg:hidden">Data diperbarui </span>
+                <span>{syncHHMM.split(" ").pop()}</span>
+              </>
+            ) : (
+              <>
+                <span className="max-lg:hidden">Offline — data mungkin usang</span>
+                <span className="lg:hidden">Offline</span>
+              </>
+            )}
           </span>
+          {installState !== "standalone" && installState !== "unsupported" && (
+            <button
+              type="button"
+              aria-label="Pasang aplikasi di home screen"
+              title={installState === "ios" ? "Add to Home Screen" : "Pasang aplikasi"}
+              onClick={() => void handleInstall()}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border border-line bg-white/90 text-ink shadow-card backdrop-blur-md transition hover:bg-white active:scale-95 [&_svg]:h-[21px] [&_svg]:w-[21px]"
+            >
+              {Icon.install}
+            </button>
+          )}
           <button
             type="button"
             aria-label="Keluar dari aplikasi"
@@ -185,8 +254,8 @@ export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpe
         </div>
       </header>
 
-      {/* hint tengah (mobile) */}
-      {!camDown && !camIdle && (
+      {/* hint tengah (mobile) — disembunyikan saat saran senter tampil agar tidak bertumpuk */}
+      {!camDown && !camIdle && !(lowLight && status === "running" && !torchOn) && (
         <p className="relative z-[4] mb-[calc(88px+12px)] mt-auto px-6 text-center text-[13.5px] leading-[1.6] text-ink-2 max-lg:block lg:absolute lg:left-[27%] lg:top-1/2 lg:m-0 lg:w-[min(30vw,320px)] lg:-translate-x-1/2 lg:-translate-y-[calc(50%+min(15vw,160px)+52px)]">
           Arahkan kamera ke barcode produk. EAN-13, EAN-8, UPC-A, Code 128, dan QR didukung.
         </p>
@@ -198,8 +267,10 @@ export function ScanView({ active, syncHHMM, online, historyCount, onCode, onOpe
           type="button"
           aria-pressed={torchOn}
           disabled={status !== "running"}
-          onClick={() => void toggleTorch()}
-          className="relative flex min-h-[58px] flex-1 flex-col items-center justify-center gap-[5px] rounded-[18px] px-1.5 py-[9px] text-xs font-semibold tracking-[0.02em] text-ink-2 transition hover:bg-brand-bg hover:text-brand-ink active:scale-95 disabled:opacity-[0.38] lg:min-h-[60px] lg:flex-none lg:flex-row lg:justify-start lg:px-[18px] lg:text-sm lg:gap-3"
+          onClick={() => void handleTorch()}
+          className={`relative flex min-h-[58px] flex-1 flex-col items-center justify-center gap-[5px] rounded-[18px] px-1.5 py-[9px] text-xs font-semibold tracking-[0.02em] transition active:scale-95 disabled:opacity-[0.38] lg:min-h-[60px] lg:flex-none lg:flex-row lg:justify-start lg:px-[18px] lg:text-sm lg:gap-3 ${
+            torchOn ? "bg-ink text-white shadow-[0_8px_20px_-8px_rgba(60,40,30,0.5)]" : "text-ink-2 hover:bg-brand-bg hover:text-brand-ink"
+          }`}
         >
           <span className="[&_svg]:h-[22px] [&_svg]:w-[22px]">{Icon.torch}</span>
           Senter
